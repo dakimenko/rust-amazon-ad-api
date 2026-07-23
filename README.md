@@ -149,19 +149,20 @@ let eu_client = na_client.with_profile("europe-profile-id");
 // Shares token cache — no redundant OAuth call
 ```
 
-## Architecture
+## Architecture & Best Practices
 
 Three-layer design:
-1. **Models** — strongly-typed serde structs with `derive_builder`
+1. **Models** — strongly-typed serde structs with `derive_builder` and `PartialEq`
 2. **Low-level APIs** — raw endpoint functions via `Configuration`
-3. **Client APIs** — convenience methods on `AmazonAdClient`
+3. **Client APIs** — convenience methods and stream generators on `AmazonAdClient`
 
-Infrastructure:
-- Adaptive token-bucket rate limiter (`x-ad-api-rate-limit-*` headers)
-- OAuth2 LWA auth with `Arc`-shared token cache
-- `reqwest-middleware` (retry, tracing, auth injection)
-- In-memory downloads with gzip auto-decompression
-- `async-stream` pagination generators
+Infrastructure & Performance:
+- **Lock-free Rate Limiter**: High-performance `moka::sync::Cache` token-bucket rate limiter parsing `x-ad-api-rate-limit-*` response headers.
+- **Credential Protection**: Sensitive strings (`client_secret`, `refresh_token`) wrapped in `SecretString` with `[REDACTED]` Debug log masking.
+- **Streaming Report Download**: Non-blocking `async-compression` report decompression directly from network streams.
+- **OAuth2 Token Synchronization**: LWA auth with `Arc`-shared token cache avoiding redundant token requests.
+- **HTTP Integration Test Suite**: Complete `wiremock` test suite under `tests/integration/` simulating OAuth tokens, 400 error payloads, and SP endpoints without live network calls.
+- **Auto-Pagination Streams**: Ergonomic `sp_stream_campaigns` stream methods powered by `async-stream`.
 
 ## Documentation
 

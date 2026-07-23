@@ -45,9 +45,9 @@ The codebase follows a clean 3-layer architecture:
 
 4. **Client Infrastructure (`src/client/`)**
    - `auth.rs`: OAuth2 Login with Amazon (LWA) token management with an `Arc`-shared token cache.
-   - `rate_limiter.rs`: Token-bucket rate limiter parsing `x-ad-api-rate-limit-*` response headers.
-   - `config.rs`: Credential loading from Environment variables (`AD_API_*`) and TOML files (`credentials.toml`).
-   - `download.rs`: Side-effect-free, in-memory report download & automatic gzip decompression.
+   - `rate_limiter.rs`: High-throughput token-bucket rate limiter driven by `moka::sync::Cache` parsing `x-ad-api-rate-limit-*` response headers.
+   - `config.rs`: Credential loading from Environment variables (`AD_API_*`) and TOML files (`credentials.toml`) with `SecretString` redaction.
+   - `download.rs`: Non-blocking streaming report download & automatic gzip decompression via `async-compression`.
    - `crypto.rs`: Encryption/decryption helpers.
 
 ---
