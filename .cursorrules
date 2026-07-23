@@ -7,3 +7,4 @@ For full project guidelines, architecture, and quality assurance commands, consu
 - **Features**: Respect `sp`, `sb`, `sd`, `dsp`, `cross`, `client` feature flags on all modules and dependencies.
 - **Verification**: Ensure `cargo test --all-features` and `cargo clippy --all-features -- -D warnings` pass cleanly.
 - **Task Tracking**: Store pending work in `tasks/` and completed work in `tasks/done_tasks/`.
+- **Git Operations**: ALWAYS execute documentation updates (`CHANGELOG.md`, `README.md`, `AGENTS.md`) BEFORE running `git commit` or `git push`.

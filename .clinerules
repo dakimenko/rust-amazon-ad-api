@@ -13,3 +13,4 @@ This project follows the unified AI Agent operating manual specified in [`AGENTS
    - New active tasks in `tasks/YYYY-MM-DD-description.md`
    - Follow metadata header format in [`tasks/TEMPLATE.md`](file:///mnt/i/AB_proj/amazon-ad-api/rust-amazon-ad-api/tasks/TEMPLATE.md)
    - Move completed tasks to `tasks/done_tasks/`
+4. **Git Operations**: Perform `git commit` and `git push` ONLY AFTER updating project documentation (`CHANGELOG.md`, `README.md`, `AGENTS.md`, and `tasks/`).

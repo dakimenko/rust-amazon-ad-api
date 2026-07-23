@@ -145,3 +145,10 @@ tasks/
 - **Traceback-First Diagnosis**: Never guess the root cause of a failing test. Always read the exact `cargo test` or `cargo clippy` output log before modifying code.
 - **No Superficial Symptom Patches**: Fix the actual root cause instead of commenting out assertions or masking deserialization errors.
 - **Environment Isolation**: Local tests must use `wiremock` or mock fixtures (see `dev-dependencies`). Never make live HTTP requests to Amazon Advertising endpoints during automated unit tests.
+
+---
+
+## 7. Mandatory Git & Documentation Workflow Rule
+
+- **Pre-Git Documentation Requirement**: **ALWAYS** update project documentation (`CHANGELOG.md`, `README.md`, `AGENTS.md`, and task status files in `tasks/`) BEFORE executing Git repository operations (`git commit`, `git push`).
+- **Atomic Commits**: Git commits and pushes must NEVER omit documentation updates corresponding to the code or architectural changes introduced.
