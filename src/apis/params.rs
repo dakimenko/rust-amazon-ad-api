@@ -18,22 +18,19 @@ pub fn build_url(
     query_params: &[(&str, &str)],
 ) -> String {
     let path = crate::apis::helpers::fill_query_params(path_template, path_params);
+    let base = base_url.trim_end_matches('/');
 
-    let url = format!("{}{}", base_url.trim_end_matches('/'), path);
+    let mut url = String::with_capacity(base.len() + path.len() + query_params.len() * 24 + 1);
+    url.push_str(base);
+    url.push_str(&path);
 
-    if query_params.is_empty() {
-        url
+    if !query_params.is_empty() {
+        let mut serializer = ::url::form_urlencoded::Serializer::new(url);
+        for (k, v) in query_params {
+            serializer.append_pair(k, v);
+        }
+        serializer.finish()
     } else {
-        let qs: Vec<String> = query_params
-            .iter()
-            .map(|(k, v)| {
-                format!(
-                    "{}={}",
-                    crate::apis::urlencode(k),
-                    crate::apis::urlencode(v)
-                )
-            })
-            .collect();
-        format!("{}?{}", url, qs.join("&"))
+        url
     }
 }

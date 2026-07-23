@@ -116,34 +116,38 @@ pub fn encode_path_segment<T: AsRef<str>>(s: T) -> String {
 
 /// Parse a nested object into `deepObject` style query parameters.
 pub fn parse_deep_object(prefix: &str, value: &serde_json::Value) -> Vec<(String, String)> {
-    if let serde_json::Value::Object(object) = value {
-        let mut params = vec![];
+    let mut params = Vec::new();
+    parse_deep_object_into(prefix, value, &mut params);
+    params
+}
 
-        for (key, value) in object {
-            match value {
-                serde_json::Value::Object(_) => params.append(&mut parse_deep_object(
-                    &format!("{}[{}]", prefix, key),
-                    value,
-                )),
+fn parse_deep_object_into(
+    prefix: &str,
+    value: &serde_json::Value,
+    out: &mut Vec<(String, String)>,
+) {
+    if let serde_json::Value::Object(object) = value {
+        for (key, val) in object {
+            match val {
+                serde_json::Value::Object(_) => {
+                    let next_prefix = format!("{}[{}]", prefix, key);
+                    parse_deep_object_into(&next_prefix, val, out);
+                }
                 serde_json::Value::Array(array) => {
-                    for (i, value) in array.iter().enumerate() {
-                        params.append(&mut parse_deep_object(
-                            &format!("{}[{}][{}]", prefix, key, i),
-                            value,
-                        ));
+                    for (i, item) in array.iter().enumerate() {
+                        let next_prefix = format!("{}[{}][{}]", prefix, key, i);
+                        parse_deep_object_into(&next_prefix, item, out);
                     }
                 }
                 serde_json::Value::String(s) => {
-                    params.push((format!("{}[{}]", prefix, key), s.clone()))
+                    out.push((format!("{}[{}]", prefix, key), s.clone()));
                 }
-                _ => params.push((format!("{}[{}]", prefix, key), value.to_string())),
+                _ => {
+                    out.push((format!("{}[{}]", prefix, key), val.to_string()));
+                }
             }
         }
-
-        return params;
     }
-
-    Vec::new()
 }
 
 #[allow(dead_code)]

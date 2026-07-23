@@ -11,10 +11,17 @@ use std::collections::HashMap;
 /// );
 /// ```
 pub fn fill_query_params(template: &str, params: &[(&str, &str)]) -> String {
-    let mut result = template.to_string();
+    if params.is_empty() || !template.contains('{') {
+        return template.to_string();
+    }
+
+    let mut result = String::with_capacity(template.len() + 32);
+    result.push_str(template);
     for (key, value) in params {
         let placeholder = format!("{{{}}}", key);
-        result = result.replace(&placeholder, value);
+        if result.contains(&placeholder) {
+            result = result.replace(&placeholder, value);
+        }
     }
     result
 }
@@ -32,12 +39,13 @@ pub fn nest_dict(flat: HashMap<String, String>) -> serde_json::Value {
     let mut root = serde_json::Map::new();
 
     for (key, value) in flat {
-        let parts: Vec<&str> = key.split('.').collect();
         let mut current = &mut root;
+        let mut parts = key.split('.').peekable();
 
-        for (i, part) in parts.iter().enumerate() {
-            if i == parts.len() - 1 {
-                current.insert(part.to_string(), serde_json::Value::String(value.clone()));
+        while let Some(part) = parts.next() {
+            if parts.peek().is_none() {
+                current.insert(part.to_string(), serde_json::Value::String(value));
+                break;
             } else {
                 current = current
                     .entry(part.to_string())
@@ -83,7 +91,7 @@ pub async fn execute_request<T: serde::de::DeserializeOwned>(
     configuration: &Configuration,
     request: reqwest::Request,
 ) -> Result<ApiResponse<T>, Error<serde_json::Value>> {
-    // Derive endpoint key from the URL path
+    // Derive endpoint key from the URL path without heap vector allocation
     let endpoint_key = derive_endpoint_key(request.url().path());
     let (default_rate, default_burst) = rate_limit_for_path(request.url().path());
 
@@ -98,12 +106,11 @@ pub async fn execute_request<T: serde::de::DeserializeOwned>(
     let resp = configuration.client.execute(request).await?;
     let status = resp.status();
 
-    // 3. Extract relevant headers before consuming the body
-    let mut headers = StdHashMap::new();
+    // 3. Extract relevant headers before consuming the body (pre-allocate capacity)
+    let mut headers = StdHashMap::with_capacity(resp.headers().len());
     for (name, value) in resp.headers().iter() {
         let name_str = name.as_str();
         if name_str.starts_with("x-")
-            || name_str.starts_with("X-")
             || name_str.eq_ignore_ascii_case("nexttoken")
             || name_str.eq_ignore_ascii_case("location")
             || name_str.eq_ignore_ascii_case("content-type")
@@ -160,26 +167,22 @@ pub async fn execute_request<T: serde::de::DeserializeOwned>(
     }
 }
 
-/// Derive a short endpoint key from a URL path for rate limiting.
+/// Derive a short endpoint key from a URL path for rate limiting without heap vector allocations.
 fn derive_endpoint_key(path: &str) -> String {
-    // e.g. /sp/campaigns/list → sp-campaigns
-    //      /sb/v4/campaigns   → sb-campaigns
-    //      /sd/adGroups        → sd-adGroups
-    let segments: Vec<&str> = path.trim_matches('/').split('/').collect();
-    if segments.len() >= 2 {
-        let prefix = segments[0]; // sp, sb, sd, dsp, v2, v3
-        let endpoint = if prefix == "v2" || prefix == "v3" {
-            // /v2/sp/... or /v3/reports
-            segments
-                .get(2)
-                .copied()
-                .unwrap_or(segments.get(1).copied().unwrap_or("unknown"))
+    let mut iter = path.trim_matches('/').split('/');
+    if let Some(s0) = iter.next() {
+        if let Some(s1) = iter.next() {
+            let endpoint = if s0 == "v2" || s0 == "v3" {
+                iter.next().unwrap_or(s1)
+            } else {
+                s1
+            };
+            format!("{}-{}", s0, endpoint)
         } else {
-            segments[1] // /sp/campaigns → campaigns
-        };
-        format!("{}-{}", prefix, endpoint)
+            s0.to_string()
+        }
     } else {
-        path.trim_matches('/').to_string()
+        String::new()
     }
 }
 
@@ -194,11 +197,11 @@ fn rate_limit_for_path(path: &str) -> (f64, u32) {
     }
 }
 
-/// Build a URL query string from a serializable struct.
+/// Build a URL query string from a serializable struct using `url::form_urlencoded::Serializer`.
 ///
 /// Converts any `serde::Serialize` struct to a properly percent-encoded query
 /// string by round-tripping through `serde_json::Value` and then encoding each
-/// non-null scalar field. This avoids generating `?field=null` noise.
+/// non-null scalar field. This avoids generating `?field=null` noise and intermediate string allocations.
 ///
 /// Requires the `client` feature (provides the `url` crate).
 ///
@@ -220,16 +223,12 @@ pub fn build_query_string<T: serde::Serialize>(value: &T) -> Result<String, serd
         _ => return Ok(String::new()),
     };
 
-    let mut pairs: Vec<String> = Vec::new();
+    let mut serializer = ::url::form_urlencoded::Serializer::new(String::new());
     for (key, val) in obj {
-        let encoded_key =
-            ::url::form_urlencoded::byte_serialize(key.as_bytes()).collect::<String>();
         match val {
             serde_json::Value::Null => {} // skip null fields
             serde_json::Value::String(s) => {
-                let encoded_val =
-                    ::url::form_urlencoded::byte_serialize(s.as_bytes()).collect::<String>();
-                pairs.push(format!("{}={}", encoded_key, encoded_val));
+                serializer.append_pair(key, s);
             }
             serde_json::Value::Array(arr) => {
                 for item in arr {
@@ -237,21 +236,16 @@ pub fn build_query_string<T: serde::Serialize>(value: &T) -> Result<String, serd
                         serde_json::Value::String(s) => s.clone(),
                         other => other.to_string(),
                     };
-                    let encoded_val =
-                        ::url::form_urlencoded::byte_serialize(s.as_bytes()).collect::<String>();
-                    pairs.push(format!("{}={}", encoded_key, encoded_val));
+                    serializer.append_pair(key, &s);
                 }
             }
             other => {
-                let s = other.to_string();
-                let encoded_val =
-                    ::url::form_urlencoded::byte_serialize(s.as_bytes()).collect::<String>();
-                pairs.push(format!("{}={}", encoded_key, encoded_val));
+                serializer.append_pair(key, &other.to_string());
             }
         }
     }
 
-    Ok(pairs.join("&"))
+    Ok(serializer.finish())
 }
 
 /// Guess the MIME type for a file path or extension (e.g. `image/png`, `video/mp4`).

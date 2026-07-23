@@ -37,21 +37,20 @@ pub fn aes_encrypt_with_random_iv(key: &[u8], data: &str) -> Result<String, anyh
         return Err(anyhow::anyhow!("AES key must be exactly 16 bytes"));
     }
 
-    let mut iv = [0u8; 16];
-    getrandom::getrandom(&mut iv).map_err(|e| anyhow::anyhow!("getrandom failed: {}", e))?;
-
     let plaintext = data.as_bytes();
-    let buf_len = plaintext.len() + 16;
-    let mut buf = vec![0u8; buf_len];
+    let pad_len = plaintext.len() + 16;
+    let mut output = vec![0u8; 16 + pad_len];
 
-    let ciphertext = Aes128CbcEnc::new(key.into(), (&iv).into())
-        .encrypt_padded_b2b_mut::<Pkcs7>(plaintext, &mut buf)
+    getrandom::getrandom(&mut output[..16])
+        .map_err(|e| anyhow::anyhow!("getrandom failed: {}", e))?;
+
+    let (iv_slice, buf_slice) = output.split_at_mut(16);
+    let ciphertext = Aes128CbcEnc::new(key.into(), (&*iv_slice).into())
+        .encrypt_padded_b2b_mut::<Pkcs7>(plaintext, buf_slice)
         .map_err(|e| anyhow::anyhow!("AES encrypt failed: {:?}", e))?;
 
-    // Prepend IV to ciphertext for decryption
-    let mut output = Vec::with_capacity(16 + ciphertext.len());
-    output.extend_from_slice(&iv);
-    output.extend_from_slice(ciphertext);
+    let total_len = 16 + ciphertext.len();
+    output.truncate(total_len);
 
     Ok(base64::Engine::encode(
         &base64::engine::general_purpose::STANDARD,

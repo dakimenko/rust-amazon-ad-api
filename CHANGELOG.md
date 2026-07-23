@@ -39,6 +39,14 @@ Initial Rust port of `python-amazon-ad-api` v0.8.5 with enterprise-grade securit
 - **Compact String Memory Optimization (`compact-str`)**: Optional `compact-str` feature flag for inline stack storage of short string identifiers.
 - **Strongly-Typed Date Formatting**: `format_date_yyyymmdd`, `format_date_iso`, and `parse_date` helpers in `src/models/common.rs` using `time::Date`.
 - **OpenTelemetry Tracing Instrumentation**: `execute_request` instrumented with `#[tracing::instrument]` recording `http.method`, `http.url`, and `http.status_code` span attributes.
+- **Algorithmic Performance Optimizations**:
+  - `derive_endpoint_key`: Replaced `.split('/').collect::<Vec>()` with zero-allocation stream iterator combinators per API request.
+  - `build_url`: Streamed query parameters directly into capacity-preallocated target buffer using `url::form_urlencoded::Serializer`, eliminating intermediate `Vec<String>` allocations.
+  - `parse_deep_object`: Refactored to single-vector recursive accumulator (`parse_deep_object_into`), eliminating recursive `Vec` creations and `.append()` vector copies.
+  - `nest_dict`: Switched to `.split('.').peekable()` iterator traversal, avoiding heap vector allocation on every map entry insertion.
+  - `RateLimiter::_wait_for_token`: Hoisted token bucket lookup out of the sleep loop and pre-allocated status `HashMap` capacity.
+  - `aes_encrypt_with_random_iv`: Replaced double-vector allocation with single `vec![0u8; 16 + pad_len]` buffer and in-place `split_at_mut` encryption.
+  - `download`: Consolidated `content-encoding` header lookups into a single pass.
 - OAuth2 LWA authentication with profile selection and `Arc`-shared token cache.
 - `reqwest-middleware` stack: retry (exponential backoff on 429/5xx),
   tracing middleware, custom auth header injection.

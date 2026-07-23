@@ -43,26 +43,14 @@ pub async fn download(
         ));
     }
 
-    let is_gzip_header = response
+    let encoding_hdr = response
         .headers()
         .get("content-encoding")
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v.contains("gzip"))
-        .unwrap_or(false);
+        .and_then(|v| v.to_str().ok());
 
-    let is_brotli_header = response
-        .headers()
-        .get("content-encoding")
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v.contains("br"))
-        .unwrap_or(false);
-
-    let is_deflate_header = response
-        .headers()
-        .get("content-encoding")
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v.contains("deflate"))
-        .unwrap_or(false);
+    let is_gzip_header = encoding_hdr.map(|v| v.contains("gzip")).unwrap_or(false);
+    let is_brotli_header = encoding_hdr.map(|v| v.contains("br")).unwrap_or(false);
+    let is_deflate_header = encoding_hdr.map(|v| v.contains("deflate")).unwrap_or(false);
 
     let body_bytes = response.bytes().await?;
 

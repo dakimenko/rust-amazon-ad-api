@@ -165,8 +165,8 @@ impl RateLimiter {
     }
 
     async fn _wait_for_token(&self, identifier: &str, rate: f64, burst: u32) {
+        let bucket_arc = self.get_or_create_bucket(identifier, rate, burst);
         loop {
-            let bucket_arc = self.get_or_create_bucket(identifier, rate, burst);
             let (wait_seconds, token_consumed) = {
                 let mut bucket = bucket_arc.lock().unwrap();
                 let now = Instant::now();
@@ -231,7 +231,8 @@ impl RateLimiter {
 
     pub async fn get_token_status(&self) -> std::collections::HashMap<String, (f64, f64, u32)> {
         let now = Instant::now();
-        let mut status = std::collections::HashMap::new();
+        let mut status =
+            std::collections::HashMap::with_capacity(self.buckets.entry_count() as usize);
 
         for (endpoint_key, bucket_arc) in self.buckets.iter() {
             let mut bucket = bucket_arc.lock().unwrap();
