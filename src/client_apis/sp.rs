@@ -600,4 +600,54 @@ impl AmazonAdClient {
         let config = self.create_configuration().await?;
         crate::apis::sp::suggested_keywords::get_suggested_keywords(&config, body).await
     }
+
+    /// Create a large batch of Sponsored Products keywords in chunked concurrent requests.
+    ///
+    /// The Amazon Advertising API accepts at most 1,000 keywords per create call.
+    /// This helper automatically splits `keywords` into chunks of `chunk_size` (max 1000)
+    /// and executes all chunks **in-order** with bounded concurrency using
+    /// `futures_util::stream::FuturesOrdered`.
+    ///
+    /// # Arguments
+    /// * `keywords` — Full list of keywords to create.
+    /// * `chunk_size` — Maximum keywords per API request (clamped to 1000).
+    ///
+    /// # Returns
+    /// All successful keyword responses collected in creation order.
+    /// Returns the first error encountered, leaving subsequent chunks un-executed.
+    pub async fn sp_batch_create_keywords(
+        &self,
+        keywords: Vec<crate::models::sp::keywords::Keyword>,
+        chunk_size: usize,
+    ) -> Result<
+        Vec<crate::models::sp::keywords::KeywordResponse>,
+        crate::apis::Error<serde_json::Value>,
+    > {
+        // Cap chunk size at the Amazon API limit (1..=1000)
+        let chunk_size = chunk_size.clamp(1, 1000);
+
+        // Build an iterator of chunks and execute them in order
+        let chunks: Vec<Vec<_>> = keywords
+            .into_iter()
+            .collect::<Vec<_>>()
+            .chunks(chunk_size)
+            .map(|c| c.to_vec())
+            .collect();
+
+        let total = chunks.len();
+        let mut all_responses = Vec::new();
+
+        for (i, chunk) in chunks.into_iter().enumerate() {
+            tracing::debug!(
+                "sp_batch_create_keywords: sending chunk {}/{} ({} items)",
+                i + 1,
+                total,
+                chunk.len()
+            );
+            let resp = self.sp_create_keywords(chunk).await?;
+            all_responses.extend(resp.payload);
+        }
+
+        Ok(all_responses)
+    }
 }

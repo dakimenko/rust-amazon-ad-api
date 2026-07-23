@@ -1,7 +1,7 @@
 # Task 17: Multi-Codec Decompression (Brotli & Deflate)
 
 **Date:** 2026-07-23
-**Status:** Pending
+**Status:** Completed
 **Priority:** Low
 **Depends on:** tasks/2026-07-23-08-streaming-gzip-decompression.md
 

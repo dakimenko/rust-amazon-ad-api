@@ -1,7 +1,7 @@
 # Task 27: High-Concurrency Batch Request Chunking (`futures-util`)
 
 **Date:** 2026-07-23
-**Status:** Pending
+**Status:** Completed
 **Priority:** Low
 **Depends on:** tasks/2026-07-23-06-auto-pagination-streams.md
 

@@ -59,7 +59,7 @@ tracing = "0.1"
 # Client feature dependencies
 async-stream = { version = "0.3", optional = true }
 futures-core = { version = "0.3", optional = true }
-async-compression = { version = "0.4", features = ["tokio", "gzip"], optional = true }
+async-compression = { version = "0.4", features = ["tokio", "gzip", "brotli", "deflate"], optional = true }
 tokio-util = { version = "0.7", features = ["io"], optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart", "stream"], optional = true }
 reqwest-middleware = { version = "0.4", features = ["json", "multipart"], optional = true }

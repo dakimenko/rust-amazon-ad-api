@@ -6,6 +6,7 @@ type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
 /// AES-CBC encrypt a string with a 16-byte key.
 /// Returns base64-encoded ciphertext.
+/// The IV is derived from the first 16 bytes of the key (deterministic).
 pub fn aes_encrypt(key: &[u8], data: &str) -> Result<String, anyhow::Error> {
     if key.len() != 16 {
         return Err(anyhow::anyhow!("AES key must be exactly 16 bytes"));
@@ -24,6 +25,37 @@ pub fn aes_encrypt(key: &[u8], data: &str) -> Result<String, anyhow::Error> {
     Ok(base64::Engine::encode(
         &base64::engine::general_purpose::STANDARD,
         ciphertext,
+    ))
+}
+
+/// AES-CBC encrypt with a cryptographically random IV (CSPRNG via `getrandom`).
+///
+/// Returns base64-encoded `IV || ciphertext` (first 16 bytes are the random IV).
+/// This prevents identical plaintext from producing the same ciphertext across calls.
+pub fn aes_encrypt_with_random_iv(key: &[u8], data: &str) -> Result<String, anyhow::Error> {
+    if key.len() != 16 {
+        return Err(anyhow::anyhow!("AES key must be exactly 16 bytes"));
+    }
+
+    let mut iv = [0u8; 16];
+    getrandom::getrandom(&mut iv).map_err(|e| anyhow::anyhow!("getrandom failed: {}", e))?;
+
+    let plaintext = data.as_bytes();
+    let buf_len = plaintext.len() + 16;
+    let mut buf = vec![0u8; buf_len];
+
+    let ciphertext = Aes128CbcEnc::new(key.into(), (&iv).into())
+        .encrypt_padded_b2b_mut::<Pkcs7>(plaintext, &mut buf)
+        .map_err(|e| anyhow::anyhow!("AES encrypt failed: {:?}", e))?;
+
+    // Prepend IV to ciphertext for decryption
+    let mut output = Vec::with_capacity(16 + ciphertext.len());
+    output.extend_from_slice(&iv);
+    output.extend_from_slice(ciphertext);
+
+    Ok(base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        &output,
     ))
 }
 
@@ -101,5 +133,17 @@ mod tests {
     fn test_aes_base64_decode_fails_on_garbage() {
         let key: [u8; 16] = [0; 16];
         assert!(aes_decrypt(&key, "not-valid-base64!!!").is_err());
+    }
+
+    #[test]
+    fn test_aes_encrypt_with_random_iv_produces_different_output() {
+        let key: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let result1 = aes_encrypt_with_random_iv(&key, "test").unwrap();
+        let result2 = aes_encrypt_with_random_iv(&key, "test").unwrap();
+        // With random IV each call should (with overwhelming probability) differ
+        assert!(!result1.is_empty());
+        assert!(!result2.is_empty());
+        // They should differ because IVs are random
+        assert_ne!(result1, result2);
     }
 }

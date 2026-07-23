@@ -1,7 +1,7 @@
 # Task 25: CSPRNG IV Generation Security (`getrandom`)
 
 **Date:** 2026-07-23
-**Status:** Pending
+**Status:** Completed
 **Priority:** Medium
 **Depends on:** None
 

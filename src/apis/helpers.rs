@@ -166,3 +166,63 @@ fn rate_limit_for_path(path: &str) -> (f64, u32) {
         (5.0, 5)
     }
 }
+
+/// Build a URL query string from a serializable struct.
+///
+/// Converts any `serde::Serialize` struct to a properly percent-encoded query
+/// string by round-tripping through `serde_json::Value` and then encoding each
+/// non-null scalar field. This avoids generating `?field=null` noise.
+///
+/// Requires the `client` feature (provides the `url` crate).
+///
+/// # Example
+/// ```ignore
+/// use serde::Serialize;
+///
+/// #[derive(Serialize)]
+/// struct Params { state: Option<String>, count: Option<u32> }
+/// let p = Params { state: Some("enabled".into()), count: Some(10) };
+/// let qs = amazon_ad_api::apis::helpers::build_query_string(&p).unwrap();
+/// assert!(qs.contains("state=enabled"));
+/// ```
+#[cfg(feature = "client")]
+pub fn build_query_string<T: serde::Serialize>(value: &T) -> Result<String, serde_json::Error> {
+    let json = serde_json::to_value(value)?;
+    let obj = match &json {
+        serde_json::Value::Object(m) => m,
+        _ => return Ok(String::new()),
+    };
+
+    let mut pairs: Vec<String> = Vec::new();
+    for (key, val) in obj {
+        let encoded_key =
+            ::url::form_urlencoded::byte_serialize(key.as_bytes()).collect::<String>();
+        match val {
+            serde_json::Value::Null => {} // skip null fields
+            serde_json::Value::String(s) => {
+                let encoded_val =
+                    ::url::form_urlencoded::byte_serialize(s.as_bytes()).collect::<String>();
+                pairs.push(format!("{}={}", encoded_key, encoded_val));
+            }
+            serde_json::Value::Array(arr) => {
+                for item in arr {
+                    let s = match item {
+                        serde_json::Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    let encoded_val =
+                        ::url::form_urlencoded::byte_serialize(s.as_bytes()).collect::<String>();
+                    pairs.push(format!("{}={}", encoded_key, encoded_val));
+                }
+            }
+            other => {
+                let s = other.to_string();
+                let encoded_val =
+                    ::url::form_urlencoded::byte_serialize(s.as_bytes()).collect::<String>();
+                pairs.push(format!("{}={}", encoded_key, encoded_val));
+            }
+        }
+    }
+
+    Ok(pairs.join("&"))
+}

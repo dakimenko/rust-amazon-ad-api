@@ -50,12 +50,44 @@ pub async fn download(
         .map(|v| v.contains("gzip"))
         .unwrap_or(false);
 
+    let is_brotli_header = response
+        .headers()
+        .get("content-encoding")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.contains("br"))
+        .unwrap_or(false);
+
+    let is_deflate_header = response
+        .headers()
+        .get("content-encoding")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.contains("deflate"))
+        .unwrap_or(false);
+
     let body_bytes = response.bytes().await?;
+
+    // Detect gzip by magic bytes when not indicated by header
     let is_gzip = matches!(format, DownloadFormat::Gzip)
         || is_gzip_header
         || (body_bytes.len() >= 2 && body_bytes[0] == 0x1f && body_bytes[1] == 0x8b);
 
-    let decompressed = if is_gzip {
+    let decompressed = if is_brotli_header {
+        use async_compression::tokio::bufread::BrotliDecoder;
+        use tokio::io::AsyncReadExt;
+
+        let mut decoder = BrotliDecoder::new(&body_bytes[..]);
+        let mut buf = Vec::new();
+        decoder.read_to_end(&mut buf).await?;
+        Bytes::from(buf)
+    } else if is_deflate_header {
+        use async_compression::tokio::bufread::DeflateDecoder;
+        use tokio::io::AsyncReadExt;
+
+        let mut decoder = DeflateDecoder::new(&body_bytes[..]);
+        let mut buf = Vec::new();
+        decoder.read_to_end(&mut buf).await?;
+        Bytes::from(buf)
+    } else if is_gzip {
         use async_compression::tokio::bufread::GzipDecoder;
         use tokio::io::AsyncReadExt;
 

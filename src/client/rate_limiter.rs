@@ -129,6 +129,14 @@ impl RateLimiter {
 
     /// Wait for a token to become available for the given endpoint and return a guard.
     /// When the guard is dropped, the response time is auto-recorded.
+    ///
+    /// # Cancellation Safety
+    ///
+    /// This method is **cancellation-safe**. If the returned future is dropped before
+    /// completion (e.g., via `tokio::time::timeout`), no token is consumed from the
+    /// bucket. The `TokenBucketState` is only modified inside a sync `Mutex` critical
+    /// section that completes atomically — there are no partial state mutations across
+    /// `.await` points.
     #[must_use = "The returned guard must be held until the API response is received"]
     pub async fn wait(&self, identifier: &str, rate: f64, burst: u32) -> RateLimitGuard {
         self._wait_for_token(identifier, rate, burst).await;
@@ -277,5 +285,39 @@ mod tests {
         assert_eq!(*rate, 10.0);
         assert_eq!(*burst, 5);
         assert!(*tokens <= 5.0 && *tokens >= 3.9);
+    }
+
+    #[tokio::test]
+    async fn test_rate_limiter_cancellation_safety() {
+        use std::time::Duration;
+        use tokio::time::timeout;
+
+        let limiter = RateLimiter::new();
+
+        // Consume all burst tokens first
+        for _ in 0..5u32 {
+            let g = limiter.wait("cancel-test", 0.1, 5).await;
+            g.mark_response();
+        }
+
+        // Now the bucket is empty. A wait() call should block.
+        // Cancel it immediately via timeout(0) — no token should be consumed.
+        let result = timeout(
+            Duration::from_millis(0),
+            limiter.wait("cancel-test", 0.1, 5),
+        )
+        .await;
+
+        // Timeout means the future was cancelled before completion
+        assert!(result.is_err(), "Expected timeout (cancellation)");
+
+        // Verify token count hasn't changed after cancellation
+        let status = limiter.get_token_status().await;
+        let (tokens, _, _) = status.get("cancel-test").expect("bucket exists");
+        // Tokens should remain ~0 (not negative or corrupted)
+        assert!(
+            *tokens >= 0.0,
+            "Token count should not go negative after cancellation"
+        );
     }
 }
