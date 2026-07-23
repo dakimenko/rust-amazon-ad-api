@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
+
+use arc_swap::ArcSwapOption;
 
 use crate::client::config::AmazonAdConfig;
 
@@ -46,13 +48,23 @@ pub struct AccountInfo {
     pub valid_payment_method: Option<bool>,
 }
 
+/// OAuth2 client with lock-free token caching via `arc-swap`.
+///
+/// `cached_token` and `profile` use `ArcSwapOption` for zero-cost
+/// concurrent reads across high-frequency API requests. A `Mutex`
+/// is used only on the write path (token refresh), preventing
+/// thundering-herd re-fetches.
 #[derive(Clone)]
 pub struct AuthClient {
     client: reqwest::Client,
     config: AmazonAdConfig,
-    cached_token: Arc<RwLock<Option<CachedToken>>>,
+    /// Lock-free read path: any thread can load the current token
+    /// without blocking other readers or writers.
+    cached_token: Arc<ArcSwapOption<CachedToken>>,
+    /// Ensures only one task refreshes the token at a time.
     refresh_mutex: Arc<Mutex<()>>,
-    profile: Arc<RwLock<Option<Profile>>>,
+    /// Active profile for the API session.
+    profile: Arc<ArcSwapOption<Profile>>,
 }
 
 impl AuthClient {
@@ -77,9 +89,9 @@ impl AuthClient {
         Ok(Self {
             client,
             config,
-            cached_token: Arc::new(RwLock::new(None)),
+            cached_token: Arc::new(ArcSwapOption::empty()),
             refresh_mutex: Arc::new(Mutex::new(())),
-            profile: Arc::new(RwLock::new(None)),
+            profile: Arc::new(ArcSwapOption::empty()),
         })
     }
 
@@ -103,42 +115,32 @@ impl AuthClient {
             .as_secs()
     }
 
+    /// Check token validity without blocking — uses lock-free load.
     pub fn is_token_valid(&self) -> bool {
-        if let Ok(cached_lock) = self.cached_token.try_read() {
-            if let Some(ref cached) = *cached_lock {
-                let current_time = Self::get_current_timestamp();
-                let buffer_time = 300;
-                return cached.expires_at > current_time + buffer_time;
-            }
+        if let Some(cached) = self.cached_token.load_full() {
+            let current_time = Self::get_current_timestamp();
+            return cached.expires_at > current_time + 300;
         }
         false
     }
 
     pub async fn get_access_token(&self) -> Result<String, anyhow::Error> {
-        // Fast path: check valid cached token
-        {
-            let cached_lock = self.cached_token.read().await;
-            if let Some(ref cached) = *cached_lock {
-                let current_time = Self::get_current_timestamp();
-                let buffer_time = 300;
-                if cached.expires_at > current_time + buffer_time {
-                    return Ok(cached.access_token.clone());
-                }
+        // Fast path: lock-free read with no contention
+        if let Some(cached) = self.cached_token.load_full() {
+            let current_time = Self::get_current_timestamp();
+            if cached.expires_at > current_time + 300 {
+                return Ok(cached.access_token.clone());
             }
         }
 
-        // Slow path: synchronize refresh
+        // Slow path: serialize refresh to prevent thundering-herd
         let _guard = self.refresh_mutex.lock().await;
 
-        // Double-check after acquiring mutex
-        {
-            let cached_lock = self.cached_token.read().await;
-            if let Some(ref cached) = *cached_lock {
-                let current_time = Self::get_current_timestamp();
-                let buffer_time = 300;
-                if cached.expires_at > current_time + buffer_time {
-                    return Ok(cached.access_token.clone());
-                }
+        // Double-check after acquiring mutex (another task may have refreshed)
+        if let Some(cached) = self.cached_token.load_full() {
+            let current_time = Self::get_current_timestamp();
+            if cached.expires_at > current_time + 300 {
+                return Ok(cached.access_token.clone());
             }
         }
 
@@ -176,11 +178,11 @@ impl AuthClient {
             let current_time = Self::get_current_timestamp();
             let expires_at = current_time + token_response.expires_in;
 
-            let mut cached_lock = self.cached_token.write().await;
-            *cached_lock = Some(CachedToken {
+            // Atomic store — all concurrent readers immediately see the new token
+            self.cached_token.store(Some(Arc::new(CachedToken {
                 access_token: token_response.access_token.clone(),
                 expires_at,
-            });
+            })));
 
             Ok(token_response.access_token)
         } else {
@@ -197,23 +199,21 @@ impl AuthClient {
     }
 
     /// Get the active profile, if one has been set.
-    pub async fn get_profile(&self) -> Option<Profile> {
-        self.profile.read().await.clone()
+    pub fn get_profile(&self) -> Option<Arc<Profile>> {
+        self.profile.load_full()
     }
 
     /// Get the active profile ID, if one has been set.
-    pub async fn get_profile_id(&self) -> Option<i64> {
-        self.profile.read().await.as_ref().map(|p| p.profile_id)
+    pub fn get_profile_id(&self) -> Option<i64> {
+        self.profile.load_full().as_ref().map(|p| p.profile_id)
     }
 
-    /// Set the active profile. Used after selecting from the profiles list.
-    pub async fn set_profile(&self, profile: Profile) {
-        let mut p = self.profile.write().await;
-        *p = Some(profile);
+    /// Set the active profile atomically. Immediately visible to all readers.
+    pub fn set_profile(&self, profile: Profile) {
+        self.profile.store(Some(Arc::new(profile)));
     }
 
     /// Fetch available profiles using the provided access token.
-    /// Requires the token to already be obtained.
     pub async fn fetch_profiles(&self, access_token: &str) -> Result<Vec<Profile>, anyhow::Error> {
         let base_url = if self.config.sandbox {
             self.config.region.sandbox_url()

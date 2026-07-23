@@ -35,6 +35,9 @@ client = [
     "futures-core",
     "async-compression",
     "tokio-util",
+    "arc-swap",
+    "percent-encoding",
+    "getrandom",
 ]
 sp = []
 sb = []
@@ -71,6 +74,9 @@ time = { version = "0.3", features = ["serde", "formatting", "parsing"], optiona
 url = { version = "2", optional = true }
 anyhow = { version = "1", optional = true }
 moka = { version = "0.12", features = ["sync"], optional = true }
+arc-swap = { version = "1.7", optional = true }
+percent-encoding = { version = "2.3", optional = true }
+getrandom = { version = "0.2", optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"

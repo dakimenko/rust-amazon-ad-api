@@ -17,11 +17,17 @@ pub struct ApiResponse<T> {
 }
 
 /// Rate limit information extracted from response headers.
+///
+/// Amazon Advertising API sends both second-precision (`x-ad-api-rate-limit-reset`)
+/// and millisecond-precision (`x-ad-api-rate-limit-reset-ms`) reset timestamps.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RateLimitInfo {
     pub limit: Option<f64>,
     pub remaining: Option<u32>,
+    /// Unix timestamp (seconds) when the rate limit resets.
     pub reset: Option<i64>,
+    /// Unix timestamp (milliseconds) for sub-second precision reset scheduling.
+    pub reset_ms: Option<i64>,
 }
 
 impl<T> ApiResponse<T> {
@@ -56,6 +62,10 @@ impl<T> ApiResponse<T> {
             let reset = headers
                 .get("x-ad-api-rate-limit-reset")
                 .and_then(|v| v.parse::<i64>().ok());
+            // Millisecond-precision reset (preferred for subsecond accuracy)
+            let reset_ms = headers
+                .get("x-ad-api-rate-limit-reset-ms")
+                .and_then(|v| v.parse::<i64>().ok());
 
             // Fallback to x-amzn-ratelimit-* headers (old format)
             let limit = limit.or_else(|| {
@@ -79,6 +89,7 @@ impl<T> ApiResponse<T> {
                     limit,
                     remaining,
                     reset,
+                    reset_ms,
                 })
             } else {
                 None

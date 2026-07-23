@@ -98,6 +98,22 @@ pub fn urlencode<T: AsRef<str>>(s: T) -> String {
     ::url::form_urlencoded::byte_serialize(s.as_ref().as_bytes()).collect()
 }
 
+/// Percent-encode a dynamic path segment per RFC 3986 (PATH_SEGMENT encoding).
+///
+/// This is stricter than query encoding and prevents characters like `/`, `?`, and `#`
+/// from breaking URL path structure when interpolating dynamic IDs.
+#[cfg(feature = "client")]
+pub fn encode_path_segment<T: AsRef<str>>(s: T) -> String {
+    use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+    utf8_percent_encode(s.as_ref(), NON_ALPHANUMERIC).to_string()
+}
+
+/// Fallback (no percent-encoding crate): returns the string as-is.
+#[cfg(not(feature = "client"))]
+pub fn encode_path_segment<T: AsRef<str>>(s: T) -> String {
+    s.as_ref().to_string()
+}
+
 /// Parse a nested object into `deepObject` style query parameters.
 pub fn parse_deep_object(prefix: &str, value: &serde_json::Value) -> Vec<(String, String)> {
     if let serde_json::Value::Object(object) = value {

@@ -110,13 +110,13 @@ impl AmazonAdClient {
     }
 
     /// Get the active profile ID, if set.
-    pub async fn get_profile_id(&self) -> Option<i64> {
-        self.auth_client.get_profile_id().await
+    pub fn get_profile_id(&self) -> Option<i64> {
+        self.auth_client.get_profile_id()
     }
 
     /// Set the active profile.
-    pub async fn set_profile(&self, profile: crate::client::auth::Profile) {
-        self.auth_client.set_profile(profile).await
+    pub fn set_profile(&self, profile: crate::client::auth::Profile) {
+        self.auth_client.set_profile(profile)
     }
 
     /// Check if sandbox mode is enabled.

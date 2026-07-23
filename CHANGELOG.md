@@ -23,6 +23,10 @@ Initial Rust port of `python-amazon-ad-api` v0.8.5 with enterprise-grade securit
 - **Ergonomic Client API Extensions**: Single-item convenience methods (`sp_create_campaign`) accepting `impl Into<T>` and stream-based auto-pagination (`sp_stream_campaigns`).
 - **HTTP Integration Test Suite**: Complete integration test suite using `wiremock` under `tests/integration/` for OAuth authentication, API payload verification, and 400 error payload parsing.
 - **Panic Safety & Structured Error Handling**: Safe parsing of headers, zero `unwrap()` panics in deep object parsing, and auto-populated `ResponseContent.entity` on HTTP error responses.
+- **Lock-Free OAuth Token Cache (`arc-swap`)**: `ArcSwapOption` replaces `tokio::sync::RwLock` in `AuthClient` for zero-cost concurrent token and profile reads. `get_profile_id` and `set_profile` are now fully synchronous.
+- **Millisecond-Precision Rate Limit Headers**: `RateLimitInfo` now parses `x-ad-api-rate-limit-reset-ms` for sub-second reset accuracy.
+- **Async Report Polling Helper (`cross_download_report_polled`)**: Automates the full Unified Reports v3 lifecycle with exponential backoff polling, COMPLETED detection, and streaming gzip-decoded S3 download in a single call.
+- **Safe URL Path Encoding (`percent-encoding`)**: `encode_path_segment` helper in `src/apis/mod.rs` ensures RFC 3986-compliant percent-encoding of dynamic API path IDs.
 - OAuth2 LWA authentication with profile selection and `Arc`-shared token cache.
 - `reqwest-middleware` stack: retry (exponential backoff on 429/5xx),
   tracing middleware, custom auth header injection.
