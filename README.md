@@ -62,14 +62,16 @@ amazon-ad-api = "0.1"
 amazon-ad-api = { version = "0.1", features = ["sp", "sb"] }
 ```
 
-| Feature  | Controls |
-|----------|----------|
-| `client` | HTTP client, auth, rate limiter (required for API calls) |
-| `sp`     | Sponsored Products v3 |
-| `sb`     | Sponsored Brands v4 |
-| `sd`     | Sponsored Display |
-| `dsp`    | DSP reports |
-| `cross`  | Profiles, portfolios, reports v3, attribution, stream |
+| Feature       | Controls |
+|---------------|----------|
+| `client`      | HTTP client, auth, rate limiter (required for API calls) |
+| `sp`          | Sponsored Products v3 |
+| `sb`          | Sponsored Brands v4 |
+| `sd`          | Sponsored Display |
+| `dsp`         | DSP reports |
+| `cross`       | Profiles, portfolios, reports v3, attribution, stream |
+| `simd-json`   | SIMD-accelerated JSON report deserialization |
+| `compact-str` | Inline stack memory optimization for short string IDs |
 
 ## Usage Examples
 

@@ -118,3 +118,62 @@ pub struct PaginationCursor {
     #[serde(default)]
     pub count: Option<i64>,
 }
+
+// ── Date Helpers ──────────────────────────────────────────────
+
+/// Format a `time::Date` as `YYYYMMDD` — the format used by Amazon Ads
+/// report request fields (e.g. `reportDate`).
+///
+/// # Example
+/// ```rust
+/// # use time::macros::date;
+/// let d = date!(2024-11-15);
+/// assert_eq!(amazon_ad_api::models::common::format_date_yyyymmdd(d), "20241115");
+/// ```
+#[cfg(feature = "client")]
+pub fn format_date_yyyymmdd(date: time::Date) -> String {
+    use time::macros::format_description;
+    date.format(format_description!("[year][month][day]"))
+        .unwrap_or_else(|_| {
+            format!(
+                "{:04}{:02}{:02}",
+                date.year(),
+                date.month() as u8,
+                date.day()
+            )
+        })
+}
+
+/// Format a `time::Date` as `YYYY-MM-DD` — the ISO 8601 format used in
+/// budget rule `startDate`/`endDate` fields.
+///
+/// # Example
+/// ```rust
+/// # use time::macros::date;
+/// let d = date!(2024-11-15);
+/// assert_eq!(amazon_ad_api::models::common::format_date_iso(d), "2024-11-15");
+/// ```
+#[cfg(feature = "client")]
+pub fn format_date_iso(date: time::Date) -> String {
+    use time::macros::format_description;
+    date.format(format_description!("[year]-[month]-[day]"))
+        .unwrap_or_else(|_| {
+            format!(
+                "{:04}-{:02}-{:02}",
+                date.year(),
+                date.month() as u8,
+                date.day()
+            )
+        })
+}
+
+/// Parse a date string in `YYYYMMDD` or `YYYY-MM-DD` format into a `time::Date`.
+#[cfg(feature = "client")]
+pub fn parse_date(s: &str) -> Result<time::Date, time::error::Parse> {
+    use time::macros::format_description;
+    if s.len() == 8 && !s.contains('-') {
+        time::Date::parse(s, format_description!("[year][month][day]"))
+    } else {
+        time::Date::parse(s, format_description!("[year]-[month]-[day]"))
+    }
+}

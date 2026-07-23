@@ -102,8 +102,18 @@ pub async fn download(
     match format {
         DownloadFormat::Raw | DownloadFormat::Gzip => Ok(DownloadResult::Raw(decompressed)),
         DownloadFormat::JsonValue => {
-            let value: serde_json::Value = serde_json::from_slice(&decompressed)?;
-            Ok(DownloadResult::JsonValue(value))
+            #[cfg(feature = "simd-json")]
+            {
+                let mut mut_bytes = decompressed.to_vec();
+                let value: serde_json::Value = simd_json::serde::from_slice(&mut mut_bytes)
+                    .map_err(|e| anyhow::anyhow!("SIMD JSON parsing failed: {}", e))?;
+                Ok(DownloadResult::JsonValue(value))
+            }
+            #[cfg(not(feature = "simd-json"))]
+            {
+                let value: serde_json::Value = serde_json::from_slice(&decompressed)?;
+                Ok(DownloadResult::JsonValue(value))
+            }
         }
         DownloadFormat::StringValue => {
             let s = String::from_utf8(decompressed.to_vec())

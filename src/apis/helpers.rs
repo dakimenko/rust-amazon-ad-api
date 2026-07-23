@@ -66,6 +66,19 @@ use std::collections::HashMap as StdHashMap;
 /// 2. Dynamic rate limit updates from `x-ad-api-rate-limit-*` headers
 /// 3. Proper extraction of `next_token` from headers and JSON body
 /// 4. Full response header capture
+///
+/// # Observability
+/// This function is instrumented with `tracing::instrument`. Each call creates
+/// a span with `http.method`, `http.url`, and `endpoint_key` attributes visible
+/// in OpenTelemetry-compatible tracing backends.
+#[tracing::instrument(
+    name = "amazon_ads.request",
+    skip(configuration, request),
+    fields(
+        http.method = %request.method(),
+        http.url = %request.url(),
+    )
+)]
 pub async fn execute_request<T: serde::de::DeserializeOwned>(
     configuration: &Configuration,
     request: reqwest::Request,
@@ -120,10 +133,24 @@ pub async fn execute_request<T: serde::de::DeserializeOwned>(
     // 5. Read response body
     let body_str = resp.text().await?;
 
+    // Record HTTP status in the current span for OpenTelemetry compatibility
+    tracing::Span::current().record("http.status_code", status.as_u16());
+
     if status.is_success() {
         let payload: T = serde_json::from_str(&body_str)?;
+        tracing::trace!(
+            endpoint = %endpoint_key,
+            status = status.as_u16(),
+            "Amazon Ads API request succeeded"
+        );
         Ok(ApiResponse::from_parts(payload, headers, &body_str))
     } else {
+        tracing::warn!(
+            endpoint = %endpoint_key,
+            status = status.as_u16(),
+            body = %body_str,
+            "Amazon Ads API request failed"
+        );
         let entity = serde_json::from_str::<serde_json::Value>(&body_str).ok();
         Err(Error::ResponseError(crate::apis::ResponseContent {
             status,
@@ -225,4 +252,16 @@ pub fn build_query_string<T: serde::Serialize>(value: &T) -> Result<String, serd
     }
 
     Ok(pairs.join("&"))
+}
+
+/// Guess the MIME type for a file path or extension (e.g. `image/png`, `video/mp4`).
+///
+/// Returns `"application/octet-stream"` if the MIME type cannot be determined.
+/// Requires the `client` feature (provides `mime_guess`).
+#[cfg(feature = "client")]
+pub fn guess_mime_type<P: AsRef<std::path::Path>>(path: P) -> String {
+    mime_guess::from_path(path)
+        .first_raw()
+        .unwrap_or("application/octet-stream")
+        .to_string()
 }

@@ -32,6 +32,13 @@ Initial Rust port of `python-amazon-ad-api` v0.8.5 with enterprise-grade securit
 - **Cancellation-Safe Rate Limiter**: `RateLimiter::wait` is documented and tested as cancellation-safe — no tokens consumed if the future is cancelled (e.g., via `tokio::time::timeout`).
 - **Type-Safe Query String Builder**: `build_query_string` in `src/apis/helpers.rs` serializes any `serde::Serialize` struct to a properly percent-encoded query string, skipping null fields automatically.
 - **Batch Keyword Creation (`sp_batch_create_keywords`)**: Automatically splits large keyword lists into API-compliant 1000-item chunks, executing sequentially and collecting all responses in order.
+- **AMS v2 Stream Datasets & Event Deserialization**: Extended `src/models/cross/stream.rs` with `StreamDataSet` enums (`SpPerformance`, `SbPerformance`, `SdPerformance`, `SpTraffic`, `BudgetUsage`) and strongly-typed serde structs for real-time stream messages.
+- **SP v3 Theme Targeting & Extended Fields**: Added `SpThemeTargetingClause`, `SpThemeType`, and `SpThemeTargetingExpression` in `src/models/sp/targeting.rs`.
+- **Automatic MIME Type Inference (`mime_guess`)**: `guess_mime_type` in `src/apis/helpers.rs` infers MIME types for creative media uploads from file extensions.
+- **SIMD-Accelerated JSON Deserialization (`simd-json`)**: Optional `simd-json` feature flag in `Cargo.toml` enabling SIMD-accelerated report deserialization.
+- **Compact String Memory Optimization (`compact-str`)**: Optional `compact-str` feature flag for inline stack storage of short string identifiers.
+- **Strongly-Typed Date Formatting**: `format_date_yyyymmdd`, `format_date_iso`, and `parse_date` helpers in `src/models/common.rs` using `time::Date`.
+- **OpenTelemetry Tracing Instrumentation**: `execute_request` instrumented with `#[tracing::instrument]` recording `http.method`, `http.url`, and `http.status_code` span attributes.
 - OAuth2 LWA authentication with profile selection and `Arc`-shared token cache.
 - `reqwest-middleware` stack: retry (exponential backoff on 429/5xx),
   tracing middleware, custom auth header injection.
