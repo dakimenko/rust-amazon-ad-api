@@ -13,3 +13,7 @@ credentials.toml
 .vscode/
 *.swp
 *.swo
+
+# AI agent skills & metadata
+.gemini/
+.skills/
