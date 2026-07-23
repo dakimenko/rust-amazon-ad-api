@@ -103,7 +103,7 @@ pub async fn execute_request<T: serde::de::DeserializeOwned>(
 
     // Record response time for rate limiter
     if let Some(guard) = rate_limit_guard {
-        guard.mark_response().await;
+        guard.mark_response();
     }
 
     // 4. Update rate limiter from response headers

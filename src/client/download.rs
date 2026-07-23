@@ -1,6 +1,4 @@
 use bytes::Bytes;
-use flate2::read::GzDecoder;
-use std::io::Read;
 
 /// Format for downloaded content.
 #[derive(Debug, Clone)]
@@ -45,26 +43,29 @@ pub async fn download(
         ));
     }
 
-    let body = response.bytes().await?;
+    let is_gzip_header = response
+        .headers()
+        .get("content-encoding")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.contains("gzip"))
+        .unwrap_or(false);
 
-    // Decompress in blocking task to avoid stalling Tokio async event loop
-    let format_clone = format.clone();
-    let decompressed = tokio::task::spawn_blocking(move || -> Result<Bytes, anyhow::Error> {
-        let is_gzip = match &format_clone {
-            DownloadFormat::Gzip => true,
-            _ => body.len() >= 2 && body[0] == 0x1f && body[1] == 0x8b,
-        };
+    let body_bytes = response.bytes().await?;
+    let is_gzip = matches!(format, DownloadFormat::Gzip)
+        || is_gzip_header
+        || (body_bytes.len() >= 2 && body_bytes[0] == 0x1f && body_bytes[1] == 0x8b);
 
-        if is_gzip {
-            let mut decoder = GzDecoder::new(&body[..]);
-            let mut buf = Vec::new();
-            decoder.read_to_end(&mut buf)?;
-            Ok(Bytes::from(buf))
-        } else {
-            Ok(body)
-        }
-    })
-    .await??;
+    let decompressed = if is_gzip {
+        use async_compression::tokio::bufread::GzipDecoder;
+        use tokio::io::AsyncReadExt;
+
+        let mut decoder = GzipDecoder::new(&body_bytes[..]);
+        let mut buf = Vec::new();
+        decoder.read_to_end(&mut buf).await?;
+        Bytes::from(buf)
+    } else {
+        body_bytes
+    };
 
     match format {
         DownloadFormat::Raw | DownloadFormat::Gzip => Ok(DownloadResult::Raw(decompressed)),

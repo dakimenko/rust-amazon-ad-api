@@ -48,6 +48,19 @@ impl AmazonAdClient {
         crate::apis::sp::campaigns::create_campaigns(&config, body).await
     }
 
+    /// Create a single Sponsored Products campaign (v3).
+    pub async fn sp_create_campaign(
+        &self,
+        campaign: impl Into<crate::models::sp::campaigns::Campaign>,
+    ) -> Result<crate::models::sp::campaigns::CampaignResponse, crate::apis::Error<serde_json::Value>>
+    {
+        let resp = self.sp_create_campaigns(vec![campaign.into()]).await?;
+        resp.payload
+            .into_iter()
+            .next()
+            .ok_or_else(|| crate::apis::Error::Custom("Empty response payload".into()))
+    }
+
     /// Update Sponsored Products campaigns (v3).
     pub async fn sp_update_campaigns(
         &self,

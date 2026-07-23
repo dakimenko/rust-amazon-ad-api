@@ -153,8 +153,8 @@ impl AuthClient {
         let request_body = LwaTokenRequest {
             grant_type: "refresh_token".to_string(),
             client_id: self.config.client_id.clone(),
-            client_secret: self.config.client_secret.clone(),
-            refresh_token: self.config.refresh_token.clone(),
+            client_secret: self.config.client_secret.expose_secret().to_string(),
+            refresh_token: self.config.refresh_token.expose_secret().to_string(),
         };
 
         let response = self

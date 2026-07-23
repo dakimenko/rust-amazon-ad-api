@@ -1,25 +1,19 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use moka::sync::Cache;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
-use tokio::time::sleep;
 
 /// RAII guard that automatically records response when dropped
 #[must_use = "RateLimitGuard must be held until the API response is received"]
 pub struct RateLimitGuard {
-    rate_limiter: Arc<Mutex<HashMap<String, TokenBucketState>>>,
+    bucket: Arc<Mutex<TokenBucketState>>,
     identifier: String,
     auto_record: bool,
 }
 
 impl RateLimitGuard {
-    fn new(
-        rate_limiter: Arc<Mutex<HashMap<String, TokenBucketState>>>,
-        identifier: String,
-        auto_record: bool,
-    ) -> Self {
+    fn new(bucket: Arc<Mutex<TokenBucketState>>, identifier: String, auto_record: bool) -> Self {
         Self {
-            rate_limiter,
+            bucket,
             identifier,
             auto_record,
         }
@@ -27,13 +21,10 @@ impl RateLimitGuard {
 
     /// Manually mark that the API response was received
     /// This will record the response time and prevent automatic recording on drop
-    pub async fn mark_response(mut self) {
+    pub fn mark_response(mut self) {
         if self.auto_record {
-            let mut buckets = self.rate_limiter.lock().await;
-            let now = Instant::now();
-
-            if let Some(bucket) = buckets.get_mut(&self.identifier) {
-                bucket.last_response_time = Some(now);
+            if let Ok(mut bucket) = self.bucket.lock() {
+                bucket.last_response_time = Some(Instant::now());
                 tracing::trace!("Manually recorded response time for {}", self.identifier);
             }
         }
@@ -44,27 +35,12 @@ impl RateLimitGuard {
 
 impl Drop for RateLimitGuard {
     fn drop(&mut self) {
-        if !self.auto_record {
-            return;
-        }
-
-        let rate_limiter = self.rate_limiter.clone();
-        let identifier = self.identifier.clone();
-
-        tokio::spawn(async move {
-            let mut buckets = rate_limiter.lock().await;
-            let now = Instant::now();
-
-            if let Some(bucket) = buckets.get_mut(&identifier) {
-                bucket.last_response_time = Some(now);
-                tracing::trace!("Auto-recorded response time for {}", identifier);
-            } else {
-                tracing::warn!(
-                    "Attempted to auto-record response for unknown endpoint: {}",
-                    identifier
-                );
+        if self.auto_record {
+            if let Ok(mut bucket) = self.bucket.lock() {
+                bucket.last_response_time = Some(Instant::now());
+                tracing::trace!("Auto-recorded response time for {}", self.identifier);
             }
-        });
+        }
     }
 }
 
@@ -86,14 +62,14 @@ pub struct TokenBucketState {
 /// `x-ad-api-rate-limit-*` headers arrive.
 #[derive(Clone)]
 pub struct RateLimiter {
-    buckets: Arc<Mutex<HashMap<String, TokenBucketState>>>,
+    buckets: Cache<String, Arc<Mutex<TokenBucketState>>>,
     safety_factor: f64,
 }
 
 impl RateLimiter {
     pub fn new() -> Self {
         Self {
-            buckets: Arc::new(Mutex::new(HashMap::new())),
+            buckets: Cache::builder().max_capacity(1_000).build(),
             safety_factor: 1.10,
         }
     }
@@ -110,7 +86,7 @@ impl RateLimiter {
         };
 
         Self {
-            buckets: Arc::new(Mutex::new(HashMap::new())),
+            buckets: Cache::builder().max_capacity(1_000).build(),
             safety_factor: factor,
         }
     }
@@ -132,29 +108,39 @@ impl RateLimiter {
         self.safety_factor
     }
 
-    /// Wait for a token to become available for the given endpoint and return a guard.
-    /// When the guard is dropped, the response time is auto-recorded.
-    #[must_use = "The returned guard must be held until the API response is received"]
-    pub async fn wait(&self, identifier: &str, rate: f64, burst: u32) -> RateLimitGuard {
-        self._wait_for_token(identifier, rate, burst).await;
-
-        RateLimitGuard::new(self.buckets.clone(), identifier.to_string(), true)
-    }
-
-    /// Dynamically update the rate limit for an endpoint based on response headers.
-    pub async fn update_limits(&self, identifier: &str, rate: f64, burst: u32) {
-        let mut buckets = self.buckets.lock().await;
+    fn get_or_create_bucket(
+        &self,
+        identifier: &str,
+        rate: f64,
+        burst: u32,
+    ) -> Arc<Mutex<TokenBucketState>> {
         let now = Instant::now();
-        let bucket = buckets
-            .entry(identifier.to_string())
-            .or_insert_with(|| TokenBucketState {
+        self.buckets.get_with(identifier.to_string(), || {
+            Arc::new(Mutex::new(TokenBucketState {
                 tokens: burst as f64,
                 last_refill: now,
                 last_response_time: None,
                 rate,
                 burst,
                 initial_burst_used: false,
-            });
+            }))
+        })
+    }
+
+    /// Wait for a token to become available for the given endpoint and return a guard.
+    /// When the guard is dropped, the response time is auto-recorded.
+    #[must_use = "The returned guard must be held until the API response is received"]
+    pub async fn wait(&self, identifier: &str, rate: f64, burst: u32) -> RateLimitGuard {
+        self._wait_for_token(identifier, rate, burst).await;
+
+        let bucket = self.get_or_create_bucket(identifier, rate, burst);
+        RateLimitGuard::new(bucket, identifier.to_string(), true)
+    }
+
+    /// Dynamically update the rate limit for an endpoint based on response headers.
+    pub async fn update_limits(&self, identifier: &str, rate: f64, burst: u32) {
+        let bucket = self.get_or_create_bucket(identifier, rate, burst);
+        let mut bucket = bucket.lock().unwrap();
 
         if (bucket.rate - rate).abs() > f64::EPSILON || bucket.burst != burst {
             tracing::info!(
@@ -172,139 +158,82 @@ impl RateLimiter {
 
     async fn _wait_for_token(&self, identifier: &str, rate: f64, burst: u32) {
         loop {
-            let mut buckets = self.buckets.lock().await;
-            let now = Instant::now();
+            let bucket_arc = self.get_or_create_bucket(identifier, rate, burst);
+            let (wait_seconds, token_consumed) = {
+                let mut bucket = bucket_arc.lock().unwrap();
+                let now = Instant::now();
 
-            let bucket = buckets.entry(identifier.to_string()).or_insert_with(|| {
-                tracing::debug!("Creating new token bucket for endpoint: {}", identifier);
-                TokenBucketState {
-                    tokens: burst as f64,
-                    last_refill: now,
-                    last_response_time: None,
-                    rate,
-                    burst,
-                    initial_burst_used: false,
+                if (bucket.rate - rate).abs() > f64::EPSILON || bucket.burst != burst {
+                    bucket.rate = rate;
+                    bucket.burst = burst;
                 }
-            });
 
-            // Update bucket configuration if changed
-            if (bucket.rate - rate).abs() > f64::EPSILON || bucket.burst != burst {
-                tracing::info!(
-                    "Updating rate limit for {}: rate {} -> {}, burst {} -> {}",
-                    identifier,
-                    bucket.rate,
-                    rate,
-                    bucket.burst,
-                    burst
-                );
-                bucket.rate = rate;
-                bucket.burst = burst;
-            }
+                let refill_from_time = if bucket.initial_burst_used {
+                    bucket.last_response_time.unwrap_or(bucket.last_refill)
+                } else {
+                    bucket.last_refill
+                };
 
-            // Calculate token refill
-            let refill_from_time = if bucket.initial_burst_used {
-                bucket.last_response_time.unwrap_or(bucket.last_refill)
-            } else {
-                bucket.last_refill
+                let time_passed = now.duration_since(refill_from_time).as_secs_f64();
+                let tokens_to_add = time_passed * bucket.rate;
+                let new_tokens = (bucket.tokens + tokens_to_add).min(bucket.burst as f64);
+
+                if new_tokens >= (bucket.burst as f64 - 0.5) && bucket.initial_burst_used {
+                    bucket.initial_burst_used = false;
+                    bucket.last_response_time = None;
+                }
+
+                bucket.tokens = new_tokens;
+                bucket.last_refill = now;
+
+                if bucket.tokens >= 1.0 {
+                    bucket.tokens -= 1.0;
+                    if bucket.burst == 1 || bucket.tokens <= 0.0 {
+                        bucket.initial_burst_used = true;
+                    }
+                    (0.0, true)
+                } else {
+                    let tokens_needed = 1.0 - bucket.tokens;
+                    let base_wait_seconds = tokens_needed / bucket.rate;
+                    (base_wait_seconds * self.safety_factor, false)
+                }
             };
 
-            let time_passed = now.duration_since(refill_from_time).as_secs_f64();
-            let tokens_to_add = time_passed * bucket.rate;
-            let new_tokens = (bucket.tokens + tokens_to_add).min(bucket.burst as f64);
-
-            if new_tokens >= (bucket.burst as f64 - 0.5) && bucket.initial_burst_used {
-                bucket.initial_burst_used = false;
-                bucket.last_response_time = None;
-            }
-
-            bucket.tokens = new_tokens;
-            bucket.last_refill = now;
-
-            // Enforce minimum interval after initial burst
-            if bucket.initial_burst_used {
-                if let Some(last_response_time) = bucket.last_response_time {
-                    let base_minimum_interval = 1.0 / bucket.rate;
-                    let minimum_interval = base_minimum_interval * self.safety_factor;
-                    let time_since_response = now.duration_since(last_response_time).as_secs_f64();
-
-                    if time_since_response < minimum_interval {
-                        let wait_seconds = minimum_interval - time_since_response;
-                        tracing::debug!(
-                            "Enforcing minimum interval for {} (safety factor: {:.2}): waiting {:.3}s",
-                            identifier,
-                            self.safety_factor,
-                            wait_seconds
-                        );
-
-                        drop(buckets);
-                        sleep(Duration::from_secs_f64(wait_seconds)).await;
-                        continue;
-                    }
-                }
-            }
-
-            // Check if we have a token available
-            if bucket.tokens >= 1.0 {
-                bucket.tokens -= 1.0;
-
-                if bucket.burst == 1 || bucket.tokens <= 0.0 {
-                    bucket.initial_burst_used = true;
-                }
-
-                tracing::debug!(
-                    "Token consumed for {}, {:.1} tokens remaining",
-                    identifier,
-                    bucket.tokens,
-                );
-
+            if token_consumed {
                 return;
             }
 
-            // Calculate wait time for next token
-            let tokens_needed = 1.0 - bucket.tokens;
-            let base_wait_seconds = tokens_needed / bucket.rate;
-            let wait_seconds = base_wait_seconds * self.safety_factor;
-
-            if !bucket.initial_burst_used {
-                bucket.initial_burst_used = true;
-            }
-
-            let wait_duration = Duration::from_secs_f64(wait_seconds.max(0.005));
-
-            drop(buckets);
-            sleep(wait_duration).await;
+            tokio::time::sleep(Duration::from_secs_f64(wait_seconds.max(0.005))).await;
         }
     }
 
     pub async fn check_token_availability(&self, identifier: &str) -> bool {
-        let mut buckets = self.buckets.lock().await;
+        let bucket_arc = match self.buckets.get(identifier) {
+            Some(b) => b,
+            None => return true,
+        };
+        let bucket = bucket_arc.lock().unwrap();
         let now = Instant::now();
 
-        if let Some(bucket) = buckets.get_mut(identifier) {
-            let time_passed = now.duration_since(bucket.last_refill).as_secs_f64();
-            let tokens_to_add = time_passed * bucket.rate;
-            bucket.tokens = (bucket.tokens + tokens_to_add).min(bucket.burst as f64);
-            bucket.last_refill = now;
-
-            bucket.tokens >= 1.0
-        } else {
-            true
-        }
+        let time_passed = now.duration_since(bucket.last_refill).as_secs_f64();
+        let tokens_to_add = time_passed * bucket.rate;
+        let new_tokens = (bucket.tokens + tokens_to_add).min(bucket.burst as f64);
+        new_tokens >= 1.0
     }
 
-    pub async fn get_token_status(&self) -> HashMap<String, (f64, f64, u32)> {
-        let mut buckets = self.buckets.lock().await;
+    pub async fn get_token_status(&self) -> std::collections::HashMap<String, (f64, f64, u32)> {
         let now = Instant::now();
-        let mut status = HashMap::new();
+        let mut status = std::collections::HashMap::new();
 
-        for (endpoint_key, bucket) in buckets.iter_mut() {
+        for (endpoint_key, bucket_arc) in self.buckets.iter() {
+            let mut bucket = bucket_arc.lock().unwrap();
             let time_passed = now.duration_since(bucket.last_refill).as_secs_f64();
             let tokens_to_add = time_passed * bucket.rate;
             bucket.tokens = (bucket.tokens + tokens_to_add).min(bucket.burst as f64);
             bucket.last_refill = now;
 
             status.insert(
-                endpoint_key.clone(),
+                (*endpoint_key).clone(),
                 (bucket.tokens, bucket.rate, bucket.burst),
             );
         }
@@ -313,14 +242,13 @@ impl RateLimiter {
     }
 
     pub async fn reset(&self) {
-        let mut buckets = self.buckets.lock().await;
-        buckets.clear();
+        self.buckets.invalidate_all();
         tracing::debug!("Rate limiter state reset");
     }
 
     pub async fn active_buckets_count(&self) -> usize {
-        let buckets = self.buckets.lock().await;
-        buckets.len()
+        self.buckets.run_pending_tasks();
+        self.buckets.entry_count() as usize
     }
 }
 
@@ -341,7 +269,7 @@ mod tests {
         // 1. Initial token consumption
         let guard = limiter.wait("sp-campaigns", 10.0, 5).await;
         assert_eq!(limiter.active_buckets_count().await, 1);
-        guard.mark_response().await;
+        guard.mark_response();
 
         // 2. Check token status
         let status = limiter.get_token_status().await;

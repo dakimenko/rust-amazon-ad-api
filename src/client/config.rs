@@ -1,14 +1,64 @@
 use serde::{Deserialize, Serialize};
 
+/// Wrapper type for sensitive strings that redacts their content in Debug output.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct SecretString(String);
+
+impl SecretString {
+    pub fn new(secret: impl Into<String>) -> Self {
+        Self(secret.into())
+    }
+
+    pub fn expose_secret(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<String> for SecretString {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for SecretString {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl std::fmt::Debug for SecretString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[REDACTED]")
+    }
+}
+
+impl serde::Serialize for SecretString {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SecretString {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        String::deserialize(deserializer).map(SecretString)
+    }
+}
+
 /// Configuration for the Amazon Advertising API client.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AmazonAdConfig {
     /// The client ID provided by Amazon.
     pub client_id: String,
     /// The client secret provided by Amazon.
-    pub client_secret: String,
+    pub client_secret: SecretString,
     /// The refresh token for obtaining access tokens.
-    pub refresh_token: String,
+    pub refresh_token: SecretString,
     /// The active advertising profile ID (None for DSP).
     pub profile_id: Option<String>,
     /// The advertising API region.
@@ -17,8 +67,8 @@ pub struct AmazonAdConfig {
     /// Whether to use the sandbox environment.
     #[serde(default)]
     pub sandbox: bool,
-    /// Custom user agent string.
-    pub user_agent: Option<String>,
+    /// Custom token URL override.
+    pub token_url: Option<String>,
     /// Request timeout in seconds. Defaults to 30s.
     pub timeout_sec: Option<u64>,
     /// Rate limit safety factor. Defaults to 1.1.
@@ -27,6 +77,8 @@ pub struct AmazonAdConfig {
     pub proxy: Option<String>,
     /// Number of retry attempts for 429/5xx. None/0 = no retries.
     pub retry_count: Option<usize>,
+    /// Custom user agent string.
+    pub user_agent: Option<String>,
 }
 
 /// Advertising API region.
@@ -89,11 +141,12 @@ impl AmazonAdConfig {
 
         Ok(Self {
             client_id,
-            client_secret,
-            refresh_token,
+            client_secret: client_secret.into(),
+            refresh_token: refresh_token.into(),
             profile_id,
             region,
             sandbox,
+            token_url: None,
             user_agent: None,
             timeout_sec: Some(30),
             rate_limit_factor: None,
@@ -187,6 +240,7 @@ mod tests {
             profile_id: None,
             region: Region::NorthAmerica,
             sandbox: false,
+            token_url: None,
             user_agent: None,
             timeout_sec: Some(30),
             rate_limit_factor: None,
@@ -194,5 +248,12 @@ mod tests {
             retry_count: None,
         };
         assert!(config.token_url().contains("amazon.com"));
+    }
+
+    #[test]
+    fn test_secret_string_redaction() {
+        let secret = SecretString::new("my-super-secret-token");
+        assert_eq!(format!("{:?}", secret), "[REDACTED]");
+        assert_eq!(secret.expose_secret(), "my-super-secret-token");
     }
 }
