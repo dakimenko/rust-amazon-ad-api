@@ -1,0 +1,15 @@
+# Project Instructions for Cline / Roo Code / Windsurf
+
+This project follows the unified AI Agent operating manual specified in [`AGENTS.md`](file:///mnt/i/AB_proj/amazon-ad-api/rust-amazon-ad-api/AGENTS.md).
+
+## Key Rules:
+1. **Architecture Compliance**:
+   - Models in `src/models/`
+   - Raw HTTP endpoints in `src/apis/`
+   - Convenience client methods in `src/client_apis/`
+   - Infrastructure in `src/client/`
+2. **Quality Checks**: Always run `cargo check --workspace`, `cargo test --workspace --all-features`, `cargo clippy --workspace --all-features -- -D warnings`, and `cargo fmt --check`.
+3. **Task Management**:
+   - New active tasks in `tasks/YYYY-MM-DD-description.md`
+   - Follow metadata header format in [`tasks/TEMPLATE.md`](file:///mnt/i/AB_proj/amazon-ad-api/rust-amazon-ad-api/tasks/TEMPLATE.md)
+   - Move completed tasks to `tasks/done_tasks/`

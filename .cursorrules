@@ -1,0 +1,9 @@
+# Cursor Rules for rust-amazon-ad-api
+
+For full project guidelines, architecture, and quality assurance commands, consult [`AGENTS.md`](file:///mnt/i/AB_proj/amazon-ad-api/rust-amazon-ad-api/AGENTS.md).
+
+## Quick Reference Guidelines:
+- **Crate**: `amazon-ad-api` (Rust 2021 edition)
+- **Features**: Respect `sp`, `sb`, `sd`, `dsp`, `cross`, `client` feature flags on all modules and dependencies.
+- **Verification**: Ensure `cargo test --all-features` and `cargo clippy --all-features -- -D warnings` pass cleanly.
+- **Task Tracking**: Store pending work in `tasks/` and completed work in `tasks/done_tasks/`.
