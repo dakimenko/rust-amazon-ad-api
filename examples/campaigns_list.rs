@@ -29,16 +29,10 @@ async fn main() -> Result<(), anyhow::Error> {
             .state
             .map(|s| format!("{:?}", s))
             .unwrap_or_else(|| "unknown".to_string());
-        let budget = campaign
-            .budget
-            .as_ref()
-            .map(|b| b.budget)
-            .unwrap_or(0.0);
+        let budget = campaign.budget.as_ref().map(|b| b.budget).unwrap_or(0.0);
         let id = campaign.campaign_id.as_deref().unwrap_or("???");
 
-        println!(
-            "  {name:<40} | {state:<10} | ${budget:>8.2} | {id}",
-        );
+        println!("  {name:<40} | {state:<10} | ${budget:>8.2} | {id}",);
     }
 
     // List only enabled campaigns with a filter

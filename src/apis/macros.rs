@@ -49,11 +49,14 @@ impl EndpointRequest {
     }
 
     pub fn with_header(mut self, key: &str, value: &str) -> Self {
-        self.headers
-            .insert(
-                key.parse::<reqwest::header::HeaderName>().unwrap(),
-                value.parse().unwrap(),
-            );
+        if let (Ok(name), Ok(val)) = (
+            key.parse::<reqwest::header::HeaderName>(),
+            value.parse::<reqwest::header::HeaderValue>(),
+        ) {
+            self.headers.insert(name, val);
+        } else {
+            tracing::warn!("Invalid header name or value ignored: {} = {}", key, value);
+        }
         self
     }
 

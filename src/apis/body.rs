@@ -30,7 +30,9 @@ impl IntoRequestBody for String {
         if serde_json::from_str::<serde_json::Value>(&content).is_ok() {
             Ok(content)
         } else {
-            Err(anyhow::anyhow!("String is neither valid JSON nor a readable file path"))
+            Err(anyhow::anyhow!(
+                "String is neither valid JSON nor a readable file path"
+            ))
         }
     }
 }

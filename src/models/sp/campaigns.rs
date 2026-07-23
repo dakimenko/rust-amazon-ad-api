@@ -1,6 +1,6 @@
+use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use derive_builder::Builder;
 
 /// Targeting type for campaigns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -20,7 +20,7 @@ pub enum CampaignState {
 }
 
 /// Daily budget.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Builder)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, Builder)]
 #[serde(rename_all = "camelCase")]
 #[builder(setter(into, strip_option), default)]
 pub struct DailyBudget {
@@ -30,7 +30,7 @@ pub struct DailyBudget {
 }
 
 /// Dynamic bidding configuration.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Builder)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, Builder)]
 #[serde(rename_all = "camelCase")]
 #[builder(setter(into, strip_option), default)]
 pub struct DynamicBidding {
@@ -38,7 +38,7 @@ pub struct DynamicBidding {
     pub strategy: Option<String>, // LEGACY_FOR_SALES, AUTO_FOR_SALES, MANUAL, RULE_BASED
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Builder)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, Builder)]
 #[serde(rename_all = "camelCase")]
 #[builder(setter(into, strip_option), default)]
 pub struct PlacementBidding {
@@ -47,7 +47,7 @@ pub struct PlacementBidding {
 }
 
 /// Sponsored Products Campaign.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Builder)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, Builder)]
 #[serde(rename_all = "camelCase")]
 #[builder(setter(into, strip_option), default)]
 pub struct Campaign {

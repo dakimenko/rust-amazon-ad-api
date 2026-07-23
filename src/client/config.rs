@@ -114,12 +114,10 @@ impl AmazonAdConfig {
     /// On Windows: `%APPDATA%\amazon-ad-api\credentials.toml`
     pub fn from_default_file() -> Result<Self, anyhow::Error> {
         let path = if cfg!(windows) {
-            let appdata = std::env::var("APPDATA")
-                .unwrap_or_else(|_| ".".to_string());
+            let appdata = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
             format!("{}\\amazon-ad-api\\credentials.toml", appdata)
         } else {
-            let home = std::env::var("HOME")
-                .unwrap_or_else(|_| ".".to_string());
+            let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
             format!("{}/.config/amazon-ad-api/credentials.toml", home)
         };
         Self::from_file(&path)
@@ -145,7 +143,10 @@ mod tests {
         assert_eq!(Region::from_str("na").unwrap(), Region::NorthAmerica);
         assert_eq!(Region::from_str("eu").unwrap(), Region::Europe);
         assert_eq!(Region::from_str("fe").unwrap(), Region::FarEast);
-        assert_eq!("northamerica".parse::<Region>().unwrap(), Region::NorthAmerica);
+        assert_eq!(
+            "northamerica".parse::<Region>().unwrap(),
+            Region::NorthAmerica
+        );
         assert_eq!("fareast".parse::<Region>().unwrap(), Region::FarEast);
     }
 

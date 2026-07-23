@@ -36,11 +36,8 @@ pub fn aes_decrypt(key: &[u8], data: &str) -> Result<Vec<u8>, anyhow::Error> {
 
     let iv = &key[..16];
 
-    let ciphertext = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        data,
-    )
-    .map_err(|e| anyhow::anyhow!("Base64 decode failed: {}", e))?;
+    let ciphertext = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, data)
+        .map_err(|e| anyhow::anyhow!("Base64 decode failed: {}", e))?;
 
     let mut buf = vec![0u8; ciphertext.len()];
 
@@ -64,9 +61,7 @@ mod tests {
 
     #[test]
     fn test_aes_encrypt_decrypt_roundtrip() {
-        let key: [u8; 16] = [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-        ];
+        let key: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         let plaintext = "Hello, Amazon Ads!";
         let encrypted = aes_encrypt(&key, plaintext).expect("encrypt failed");
         let decrypted = aes_decrypt(&key, &encrypted).expect("decrypt failed");
@@ -75,9 +70,7 @@ mod tests {
 
     #[test]
     fn test_aes_encrypt_produces_different_output() {
-        let key: [u8; 16] = [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-        ];
+        let key: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         let result1 = aes_encrypt(&key, "test").unwrap();
         let result2 = aes_encrypt(&key, "test").unwrap();
         assert!(!result1.is_empty());

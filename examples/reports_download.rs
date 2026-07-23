@@ -8,8 +8,8 @@
 //!   export AD_API_PROFILE_ID=...
 //!   cargo run --example reports_download
 
-use amazon_ad_api::client::{AmazonAdClient, AmazonAdConfig};
 use amazon_ad_api::client::download::{download, DownloadFormat, DownloadResult};
+use amazon_ad_api::client::{AmazonAdClient, AmazonAdConfig};
 use amazon_ad_api::models::sp::reports::SpReportRequestBuilder;
 use std::time::Duration;
 
@@ -40,11 +40,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Waiting for report to complete...");
     let location = loop {
         let status_resp = client.sp_get_report_status(&report_id).await?;
-        let status = status_resp
-            .payload
-            .status
-            .as_deref()
-            .unwrap_or("UNKNOWN");
+        let status = status_resp.payload.status.as_deref().unwrap_or("UNKNOWN");
 
         println!("  Status: {status}");
         if status == "COMPLETED" {

@@ -1,9 +1,13 @@
-use serde::{Deserialize, Serialize};
 use derive_builder::Builder;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum PortfolioState { Enabled, Paused, Archived }
+pub enum PortfolioState {
+    Enabled,
+    Paused,
+    Archived,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder, Default)]
 #[serde(rename_all = "camelCase")]

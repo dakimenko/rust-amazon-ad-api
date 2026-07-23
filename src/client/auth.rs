@@ -46,6 +46,7 @@ pub struct AccountInfo {
     pub valid_payment_method: Option<bool>,
 }
 
+#[derive(Clone)]
 pub struct AuthClient {
     client: reqwest::Client,
     config: AmazonAdConfig,
@@ -98,7 +99,7 @@ impl AuthClient {
     fn get_current_timestamp() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs()
     }
 
@@ -167,7 +168,10 @@ impl AuthClient {
         if response.status().is_success() {
             let token_response: LwaTokenResponse = response.json().await?;
 
-            tracing::debug!("Token response: {:?}", &token_response);
+            tracing::debug!(
+                "Received fresh access token (expires_in: {}s)",
+                token_response.expires_in
+            );
 
             let current_time = Self::get_current_timestamp();
             let expires_at = current_time + token_response.expires_in;
@@ -210,10 +214,7 @@ impl AuthClient {
 
     /// Fetch available profiles using the provided access token.
     /// Requires the token to already be obtained.
-    pub async fn fetch_profiles(
-        &self,
-        access_token: &str,
-    ) -> Result<Vec<Profile>, anyhow::Error> {
+    pub async fn fetch_profiles(&self, access_token: &str) -> Result<Vec<Profile>, anyhow::Error> {
         let base_url = if self.config.sandbox {
             self.config.region.sandbox_url()
         } else {
@@ -225,10 +226,7 @@ impl AuthClient {
         let response = self
             .client
             .get(&url)
-            .header(
-                "Amazon-Advertising-API-ClientId",
-                &self.config.client_id,
-            )
+            .header("Amazon-Advertising-API-ClientId", &self.config.client_id)
             .header("Authorization", format!("Bearer {}", access_token))
             .header("Content-Type", "application/json")
             .send()

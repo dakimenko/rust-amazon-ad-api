@@ -19,22 +19,25 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let limiter = client.limiter();
 
-    println!("Initial Rate Limiter Safety Factor: {}", limiter.get_safety_factor());
+    println!(
+        "Initial Rate Limiter Safety Factor: {}",
+        limiter.get_safety_factor()
+    );
 
     // You can dynamically update limits if you know them from documentation,
     // though the SDK normally updates them automatically from response headers.
     let endpoint_id = "sp/campaigns";
     let default_rate = 10.0; // 10 requests per second
-    let default_burst = 50;  // Burst of 50 requests
+    let default_burst = 50; // Burst of 50 requests
 
     println!("Simulating 5 requests to {}...", endpoint_id);
 
     for i in 1..=5 {
         // Wait for a token. This will block if the bucket is empty.
         let guard = limiter.wait(endpoint_id, default_rate, default_burst).await;
-        
+
         println!("Request {} acquired token.", i);
-        
+
         // Simulating the actual API call
         sleep(Duration::from_millis(50)).await;
 

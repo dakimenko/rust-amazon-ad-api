@@ -1,4 +1,5 @@
 pub mod auth;
+#[allow(clippy::module_inception)]
 pub mod client;
 pub mod config;
 pub mod crypto;

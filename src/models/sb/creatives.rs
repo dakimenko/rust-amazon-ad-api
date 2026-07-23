@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use derive_builder::Builder;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder, Default)]

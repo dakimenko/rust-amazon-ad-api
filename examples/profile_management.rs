@@ -44,21 +44,15 @@ async fn main() -> Result<(), anyhow::Error> {
         let country = p["countryCode"].as_str().unwrap_or("???");
         let currency = p["currencyCode"].as_str().unwrap_or("???");
         let timezone = p["timezone"].as_str().unwrap_or("???");
-        let name = p["accountInfo"]["name"]
-            .as_str()
-            .unwrap_or("unnamed");
+        let name = p["accountInfo"]["name"].as_str().unwrap_or("unnamed");
 
-        println!(
-            "  ID: {profile_id:<12} | {country:<3} | {currency:<4} | {timezone:<30} | {name}"
-        );
+        println!("  ID: {profile_id:<12} | {country:<3} | {currency:<4} | {timezone:<30} | {name}");
     }
 
     // Select the first profile
     if let Some(first) = profiles.first() {
         if let Some(id) = first["profileId"].as_i64() {
-            println!(
-                "\nWould set profile_id={id} in config to use this profile."
-            );
+            println!("\nWould set profile_id={id} in config to use this profile.");
             println!("Example: config.profile_id = Some(\"{id}\".into());");
         }
     }

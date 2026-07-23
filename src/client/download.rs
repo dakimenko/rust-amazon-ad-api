@@ -47,45 +47,29 @@ pub async fn download(
 
     let body = response.bytes().await?;
 
-    // Check if we need to decompress
-    let decompressed = match &format {
-        DownloadFormat::Gzip => {
+    // Decompress in blocking task to avoid stalling Tokio async event loop
+    let format_clone = format.clone();
+    let decompressed = tokio::task::spawn_blocking(move || -> Result<Bytes, anyhow::Error> {
+        let is_gzip = match &format_clone {
+            DownloadFormat::Gzip => true,
+            _ => body.len() >= 2 && body[0] == 0x1f && body[1] == 0x8b,
+        };
+
+        if is_gzip {
             let mut decoder = GzDecoder::new(&body[..]);
             let mut buf = Vec::new();
             decoder.read_to_end(&mut buf)?;
-            Bytes::from(buf)
+            Ok(Bytes::from(buf))
+        } else {
+            Ok(body)
         }
-        DownloadFormat::Raw => {
-            // Auto-detect: check for gzip magic bytes
-            if body.len() >= 2 && body[0] == 0x1f && body[1] == 0x8b {
-                let mut decoder = GzDecoder::new(&body[..]);
-                let mut buf = Vec::new();
-                decoder.read_to_end(&mut buf)?;
-                Bytes::from(buf)
-            } else {
-                body
-            }
-        }
-        _ => {
-            // For JsonValue/StringValue, decompress if gzip, else keep raw
-            if body.len() >= 2 && body[0] == 0x1f && body[1] == 0x8b {
-                let mut decoder = GzDecoder::new(&body[..]);
-                let mut buf = Vec::new();
-                decoder.read_to_end(&mut buf)?;
-                Bytes::from(buf)
-            } else {
-                body
-            }
-        }
-    };
+    })
+    .await??;
 
     match format {
-        DownloadFormat::Raw | DownloadFormat::Gzip => {
-            Ok(DownloadResult::Raw(decompressed))
-        }
+        DownloadFormat::Raw | DownloadFormat::Gzip => Ok(DownloadResult::Raw(decompressed)),
         DownloadFormat::JsonValue => {
-            let value: serde_json::Value =
-                serde_json::from_slice(&decompressed)?;
+            let value: serde_json::Value = serde_json::from_slice(&decompressed)?;
             Ok(DownloadResult::JsonValue(value))
         }
         DownloadFormat::StringValue => {
@@ -104,6 +88,10 @@ pub trait SaveToFile {
 
 impl SaveToFile for Bytes {
     async fn save_to_file<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
-        std::fs::write(path, self)
+        let path = path.as_ref().to_path_buf();
+        let bytes = self.clone();
+        tokio::task::spawn_blocking(move || std::fs::write(path, bytes))
+            .await
+            .map_err(|e| std::io::Error::other(e.to_string()))?
     }
 }

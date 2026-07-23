@@ -1,7 +1,7 @@
 use amazon_ad_api::client::{AmazonAdClient, AmazonAdConfig};
 use amazon_ad_api::models::sp::budget_rules::{
-    BudgetRule, BudgetRuleDetails, BudgetRuleType, BudgetRuleStatus,
-    RuleRecurrence, BudgetIncreaseBy
+    BudgetIncreaseBy, BudgetRule, BudgetRuleDetails, BudgetRuleStatus, BudgetRuleType,
+    RuleRecurrence,
 };
 
 #[tokio::main]
@@ -34,10 +34,8 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Creating budget rule...");
 
     // 4. Call the budget rules API
-    let response = amazon_ad_api::apis::sp::budget_rules::create_budget_rule(
-        &api_config,
-        vec![rule]
-    ).await;
+    let response =
+        amazon_ad_api::apis::sp::budget_rules::create_budget_rule(&api_config, vec![rule]).await;
 
     match response {
         Ok(res) => {

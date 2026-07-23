@@ -14,9 +14,7 @@ use crate::models::common::ApiResponse;
 /// must return a future yielding `Result<ApiResponse<T>, Error<E>>`.
 ///
 /// Returns a `Stream` of items that yields each item as soon as it's available.
-pub fn paginate_cursor<F, Fut, T, E>(
-    f: F,
-) -> impl Stream<Item = Result<T, Error<E>>>
+pub fn paginate_cursor<F, Fut, T, E>(f: F) -> impl Stream<Item = Result<T, Error<E>>>
 where
     F: Fn(Option<String>) -> Fut + Send + Sync + 'static,
     Fut: Future<Output = Result<ApiResponse<Vec<T>>, Error<E>>> + Send + 'static,
@@ -49,9 +47,7 @@ where
 }
 
 /// Paginate through cursor-based API responses and collect all items.
-pub async fn paginate_all_cursor<F, Fut, T, E>(
-    f: F,
-) -> Result<Vec<T>, Error<E>>
+pub async fn paginate_all_cursor<F, Fut, T, E>(f: F) -> Result<Vec<T>, Error<E>>
 where
     F: Fn(Option<String>) -> Fut + Send,
     Fut: Future<Output = Result<ApiResponse<Vec<T>>, Error<E>>> + Send,

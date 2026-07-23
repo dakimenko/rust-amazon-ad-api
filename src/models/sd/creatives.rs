@@ -1,6 +1,6 @@
+use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use derive_builder::Builder;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Builder)]
 #[serde(rename_all = "camelCase")]

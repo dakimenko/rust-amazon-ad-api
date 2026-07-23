@@ -1,12 +1,20 @@
-use serde::{Deserialize, Serialize};
 use derive_builder::Builder;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum SbNegativeKeywordState { Enabled, Paused, Archived }
+pub enum SbNegativeKeywordState {
+    Enabled,
+    Paused,
+    Archived,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum SbNegativeMatchType { NegativeExact, NegativePhrase, NegativeBroad }
+pub enum SbNegativeMatchType {
+    NegativeExact,
+    NegativePhrase,
+    NegativeBroad,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder, Default)]
 #[serde(rename_all = "camelCase")]

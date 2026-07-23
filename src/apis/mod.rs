@@ -2,23 +2,23 @@ use std::fmt;
 
 use serde::Deserialize;
 
-pub mod configuration;
-pub mod pagination;
 pub mod body;
-pub mod macros;
+pub mod configuration;
 pub mod helpers;
+pub mod macros;
+pub mod pagination;
 pub mod params;
 
-#[cfg(feature = "sp")]
-pub mod sp;
+#[cfg(feature = "cross")]
+pub mod cross;
+#[cfg(feature = "dsp")]
+pub mod dsp;
 #[cfg(feature = "sb")]
 pub mod sb;
 #[cfg(feature = "sd")]
 pub mod sd;
-#[cfg(feature = "dsp")]
-pub mod dsp;
-#[cfg(feature = "cross")]
-pub mod cross;
+#[cfg(feature = "sp")]
+pub mod sp;
 
 /// Response content on error.
 #[derive(Debug, Clone)]
@@ -42,7 +42,6 @@ pub struct ApiErrorDetail {
 struct ApiErrorResponse {
     errors: Vec<ApiErrorDetail>,
 }
-
 
 impl<T> fmt::Display for ResponseContent<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -71,13 +70,17 @@ pub enum Error<T> {
     Serde(#[from] serde_json::Error),
     #[error("error in IO: {0}")]
     Io(#[from] std::io::Error),
+    #[error("middleware error: {0}")]
+    Middleware(String),
+    #[error("custom error: {0}")]
+    Custom(String),
     #[error("error in response: {0}")]
     ResponseError(ResponseContent<T>),
 }
 
 impl<T> From<anyhow::Error> for Error<T> {
     fn from(e: anyhow::Error) -> Self {
-        Error::Io(std::io::Error::other(e.to_string()))
+        Error::Custom(e.to_string())
     }
 }
 
@@ -85,9 +88,7 @@ impl<T> From<reqwest_middleware::Error> for Error<T> {
     fn from(e: reqwest_middleware::Error) -> Self {
         match e {
             reqwest_middleware::Error::Reqwest(err) => Error::Reqwest(err),
-            reqwest_middleware::Error::Middleware(err) => {
-                Error::Io(std::io::Error::other(err.to_string()))
-            }
+            reqwest_middleware::Error::Middleware(err) => Error::Middleware(err.to_string()),
         }
     }
 }
@@ -98,21 +99,16 @@ pub fn urlencode<T: AsRef<str>>(s: T) -> String {
 }
 
 /// Parse a nested object into `deepObject` style query parameters.
-pub fn parse_deep_object(
-    prefix: &str,
-    value: &serde_json::Value,
-) -> Vec<(String, String)> {
+pub fn parse_deep_object(prefix: &str, value: &serde_json::Value) -> Vec<(String, String)> {
     if let serde_json::Value::Object(object) = value {
         let mut params = vec![];
 
         for (key, value) in object {
             match value {
-                serde_json::Value::Object(_) => {
-                    params.append(&mut parse_deep_object(
-                        &format!("{}[{}]", prefix, key),
-                        value,
-                    ))
-                }
+                serde_json::Value::Object(_) => params.append(&mut parse_deep_object(
+                    &format!("{}[{}]", prefix, key),
+                    value,
+                )),
                 serde_json::Value::Array(array) => {
                     for (i, value) in array.iter().enumerate() {
                         params.append(&mut parse_deep_object(
@@ -124,17 +120,14 @@ pub fn parse_deep_object(
                 serde_json::Value::String(s) => {
                     params.push((format!("{}[{}]", prefix, key), s.clone()))
                 }
-                _ => params.push((
-                    format!("{}[{}]", prefix, key),
-                    value.to_string(),
-                )),
+                _ => params.push((format!("{}[{}]", prefix, key), value.to_string())),
             }
         }
 
         return params;
     }
 
-    unimplemented!("Only objects are supported with style=deepObject")
+    Vec::new()
 }
 
 #[allow(dead_code)]
@@ -153,5 +146,25 @@ impl From<&str> for ContentType {
         } else {
             Self::Unsupported(content_type.to_string())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_deep_object_non_object_safely_returns_empty() {
+        let val = serde_json::json!("string_value");
+        let res = parse_deep_object("filter", &val);
+        assert!(res.is_empty());
+    }
+
+    #[test]
+    fn test_parse_deep_object_valid_object() {
+        let val = serde_json::json!({ "state": "enabled" });
+        let res = parse_deep_object("filter", &val);
+        assert_eq!(res.len(), 1);
+        assert_eq!(res[0], ("filter[state]".to_string(), "enabled".to_string()));
     }
 }

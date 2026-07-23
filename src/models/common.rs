@@ -27,15 +27,10 @@ pub struct RateLimitInfo {
 impl<T> ApiResponse<T> {
     /// Build an ApiResponse from raw parts: headers map, parsed payload,
     /// and the raw JSON body string (for extracting body-level `nextCursor`).
-    pub fn from_parts(
-        payload: T,
-        headers: HashMap<String, String>,
-        body_str: &str,
-    ) -> Self {
-        // Try to extract next_token from response headers first
+    pub fn from_parts(payload: T, headers: HashMap<String, String>, body_str: &str) -> Self {
+        // Try to extract next_token from response headers (normalized lowercase)
         let mut next_token = headers
             .get("nexttoken")
-            .or_else(|| headers.get("NextToken"))
             .or_else(|| headers.get("x-amzn-next-token"))
             .cloned();
 

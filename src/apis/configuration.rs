@@ -18,7 +18,10 @@ impl std::fmt::Debug for Configuration {
         f.debug_struct("Configuration")
             .field("base_path", &self.base_path)
             .field("user_agent", &self.user_agent)
-            .field("rate_limiter", &self.rate_limiter.as_ref().map(|_| "<RateLimiter>"))
+            .field(
+                "rate_limiter",
+                &self.rate_limiter.as_ref().map(|_| "<RateLimiter>"),
+            )
             .finish()
     }
 }
@@ -34,11 +37,7 @@ impl CustomClient {
         Self::with_headers(client, retry_count, HeaderMap::new())
     }
 
-    pub fn with_headers(
-        client: reqwest::Client,
-        retry_count: usize,
-        headers: HeaderMap,
-    ) -> Self {
+    pub fn with_headers(client: reqwest::Client, retry_count: usize, headers: HeaderMap) -> Self {
         let mut builder = reqwest_middleware::ClientBuilder::new(client);
 
         builder = builder.with(reqwest_tracing::TracingMiddleware::default());
@@ -46,10 +45,9 @@ impl CustomClient {
         if retry_count > 0 {
             let retry_policy = reqwest_retry::policies::ExponentialBackoff::builder()
                 .build_with_max_retries(retry_count as u32);
-            builder = builder
-                .with(reqwest_retry::RetryTransientMiddleware::new_with_policy(
-                    retry_policy,
-                ));
+            builder = builder.with(reqwest_retry::RetryTransientMiddleware::new_with_policy(
+                retry_policy,
+            ));
         }
 
         let inner = builder.build();

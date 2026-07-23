@@ -1,12 +1,20 @@
-use serde::{Deserialize, Serialize};
 use derive_builder::Builder;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum SbMatchType { Exact, Phrase, Broad }
+pub enum SbMatchType {
+    Exact,
+    Phrase,
+    Broad,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum SbKeywordState { Enabled, Paused, Archived }
+pub enum SbKeywordState {
+    Enabled,
+    Paused,
+    Archived,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder, Default)]
 #[serde(rename_all = "camelCase")]

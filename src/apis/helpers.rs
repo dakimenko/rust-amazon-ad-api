@@ -37,10 +37,7 @@ pub fn nest_dict(flat: HashMap<String, String>) -> serde_json::Value {
 
         for (i, part) in parts.iter().enumerate() {
             if i == parts.len() - 1 {
-                current.insert(
-                    part.to_string(),
-                    serde_json::Value::String(value.clone()),
-                );
+                current.insert(part.to_string(), serde_json::Value::String(value.clone()));
             } else {
                 current = current
                     .entry(part.to_string())
@@ -88,11 +85,19 @@ pub async fn execute_request<T: serde::de::DeserializeOwned>(
     let resp = configuration.client.execute(request).await?;
     let status = resp.status();
 
-    // 3. Extract headers before consuming the body
+    // 3. Extract relevant headers before consuming the body
     let mut headers = StdHashMap::new();
     for (name, value) in resp.headers().iter() {
-        if let Ok(v) = value.to_str() {
-            headers.insert(name.as_str().to_lowercase(), v.to_string());
+        let name_str = name.as_str();
+        if name_str.starts_with("x-")
+            || name_str.starts_with("X-")
+            || name_str.eq_ignore_ascii_case("nexttoken")
+            || name_str.eq_ignore_ascii_case("location")
+            || name_str.eq_ignore_ascii_case("content-type")
+        {
+            if let Ok(v) = value.to_str() {
+                headers.insert(name_str.to_lowercase(), v.to_string());
+            }
         }
     }
 
@@ -119,10 +124,11 @@ pub async fn execute_request<T: serde::de::DeserializeOwned>(
         let payload: T = serde_json::from_str(&body_str)?;
         Ok(ApiResponse::from_parts(payload, headers, &body_str))
     } else {
+        let entity = serde_json::from_str::<serde_json::Value>(&body_str).ok();
         Err(Error::ResponseError(crate::apis::ResponseContent {
             status,
             content: body_str,
-            entity: None,
+            entity,
         }))
     }
 }
@@ -137,7 +143,10 @@ fn derive_endpoint_key(path: &str) -> String {
         let prefix = segments[0]; // sp, sb, sd, dsp, v2, v3
         let endpoint = if prefix == "v2" || prefix == "v3" {
             // /v2/sp/... or /v3/reports
-            segments.get(2).copied().unwrap_or(segments.get(1).copied().unwrap_or("unknown"))
+            segments
+                .get(2)
+                .copied()
+                .unwrap_or(segments.get(1).copied().unwrap_or("unknown"))
         } else {
             segments[1] // /sp/campaigns → campaigns
         };

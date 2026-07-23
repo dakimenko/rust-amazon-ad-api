@@ -1,15 +1,25 @@
-use serde::{Deserialize, Serialize};
 use derive_builder::Builder;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum SbCampaignState { Enabled, Paused, Archived }
+pub enum SbCampaignState {
+    Enabled,
+    Paused,
+    Archived,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum SbCreativeType { Video, ProductCollection }
+pub enum SbCreativeType {
+    Video,
+    ProductCollection,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum SbTargetingType { Auto, Manual }
+pub enum SbTargetingType {
+    Auto,
+    Manual,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder, Default)]
 #[serde(rename_all = "camelCase")]

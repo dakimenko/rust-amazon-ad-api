@@ -8,7 +8,10 @@ pub async fn get_recommendations(
 ) -> Result<ApiResponse<serde_json::Value>, Error<serde_json::Value>> {
     let client = reqwest::Client::new();
     let mut req = client
-        .request(reqwest::Method::GET, format!("{}/v2/hsa/recommendations", configuration.base_path))
+        .request(
+            reqwest::Method::GET,
+            format!("{}/v2/hsa/recommendations", configuration.base_path),
+        )
         .header("Accept", "application/json")
         .header("Content-Type", "application/json");
     if let Some(params) = query {
@@ -16,5 +19,4 @@ pub async fn get_recommendations(
     }
     let req = req.build()?;
     crate::apis::helpers::execute_request(configuration, req).await
-
 }

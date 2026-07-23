@@ -67,10 +67,18 @@ impl Marketplace {
             Marketplace::CA => "CAD",
             Marketplace::MX => "MXN",
             Marketplace::BR => "BRL",
-            Marketplace::UK | Marketplace::DE | Marketplace::FR
-            | Marketplace::IT | Marketplace::ES | Marketplace::NL
-            | Marketplace::SE | Marketplace::PL | Marketplace::BE
-            | Marketplace::TR | Marketplace::AE | Marketplace::SA
+            Marketplace::UK
+            | Marketplace::DE
+            | Marketplace::FR
+            | Marketplace::IT
+            | Marketplace::ES
+            | Marketplace::NL
+            | Marketplace::SE
+            | Marketplace::PL
+            | Marketplace::BE
+            | Marketplace::TR
+            | Marketplace::AE
+            | Marketplace::SA
             | Marketplace::EG => "EUR",
             Marketplace::IN => "INR",
             Marketplace::JP => "JPY",
@@ -113,13 +121,20 @@ impl Marketplace {
             Marketplace::US | Marketplace::CA | Marketplace::MX | Marketplace::BR => {
                 crate::client::config::Region::NorthAmerica
             }
-            Marketplace::UK | Marketplace::DE | Marketplace::FR
-            | Marketplace::IT | Marketplace::ES | Marketplace::NL
-            | Marketplace::SE | Marketplace::PL | Marketplace::BE
-            | Marketplace::TR | Marketplace::AE | Marketplace::SA
-            | Marketplace::EG | Marketplace::IN => {
-                crate::client::config::Region::Europe
-            }
+            Marketplace::UK
+            | Marketplace::DE
+            | Marketplace::FR
+            | Marketplace::IT
+            | Marketplace::ES
+            | Marketplace::NL
+            | Marketplace::SE
+            | Marketplace::PL
+            | Marketplace::BE
+            | Marketplace::TR
+            | Marketplace::AE
+            | Marketplace::SA
+            | Marketplace::EG
+            | Marketplace::IN => crate::client::config::Region::Europe,
             Marketplace::JP | Marketplace::AU | Marketplace::SG => {
                 crate::client::config::Region::FarEast
             }
