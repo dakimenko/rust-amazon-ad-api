@@ -167,6 +167,13 @@ Infrastructure:
 
 Run examples: `cargo run --example campaigns_list`
 
+## Development
+
+Task management convention:
+- Active tasks → `tasks/`
+- Completed tasks → `tasks/done_tasks/`
+- See [`tasks/README.md`](tasks/README.md) for details.
+
 ## License
 
 MIT
