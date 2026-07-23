@@ -1,0 +1,13 @@
+# Auto-detect text files, normalize line endings to LF
+* text=auto
+
+# Rust source files
+*.rs text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binary
+*.png binary
+*.ico binary

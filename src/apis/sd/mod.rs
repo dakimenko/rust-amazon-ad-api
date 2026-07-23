@@ -1,0 +1,14 @@
+pub mod campaigns;
+pub mod ad_groups;
+pub mod product_ads;
+pub mod product_targeting;
+pub mod negative_product_targeting;
+pub mod creatives;
+pub mod brand_safety;
+pub mod budget_rules;
+pub mod reports;
+pub mod snapshots;
+pub mod bid_recommendations;
+pub mod targeting_recommendations;
+pub mod forecast;
+pub mod recommendations;

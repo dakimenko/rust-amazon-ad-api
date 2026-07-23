@@ -1,0 +1,15 @@
+# Build artifacts
+/target
+
+# Backup files
+**/*.rs.bk
+
+# Environment / secrets
+.env
+credentials.toml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

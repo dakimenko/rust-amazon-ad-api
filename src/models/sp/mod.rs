@@ -1,0 +1,15 @@
+pub mod campaigns;
+pub mod ad_groups;
+pub mod keywords;
+pub mod negative_keywords;
+pub mod product_ads;
+pub mod targeting;
+pub mod negative_targeting;
+pub mod campaign_negative_keywords;
+pub mod campaign_negative_targets;
+pub mod bids;
+pub mod budget_rules;
+pub mod optimization;
+pub mod recommendations;
+pub mod snapshots;
+pub mod reports;
