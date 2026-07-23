@@ -105,6 +105,14 @@ impl Region {
     pub const fn sandbox_url(&self) -> &'static str {
         "https://advertising-api-test.amazon.com"
     }
+
+    pub const fn token_url(&self) -> &'static str {
+        match self {
+            Region::NorthAmerica => "https://api.amazon.com/auth/o2/token",
+            Region::Europe => "https://api.amazon.co.uk/auth/o2/token",
+            Region::FarEast => "https://api.amazon.co.jp/auth/o2/token",
+        }
+    }
 }
 
 impl std::str::FromStr for Region {
@@ -176,13 +184,12 @@ impl AmazonAdConfig {
         Self::from_file(&path)
     }
 
-    /// Get the OAuth2 token URL for the configured region.
+    /// Get the OAuth2 token URL for the configured region or custom override.
     pub fn token_url(&self) -> String {
-        match self.region {
-            Region::NorthAmerica => "https://api.amazon.com/auth/o2/token".to_string(),
-            Region::Europe => "https://api.amazon.co.uk/auth/o2/token".to_string(),
-            Region::FarEast => "https://api.amazon.co.jp/auth/o2/token".to_string(),
+        if let Some(ref url) = self.token_url {
+            return url.clone();
         }
+        self.region.token_url().to_string()
     }
 }
 

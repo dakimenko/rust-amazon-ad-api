@@ -47,6 +47,9 @@ Initial Rust port of `python-amazon-ad-api` v0.8.5 with enterprise-grade securit
   - `RateLimiter::_wait_for_token`: Hoisted token bucket lookup out of the sleep loop and pre-allocated status `HashMap` capacity.
   - `aes_encrypt_with_random_iv`: Replaced double-vector allocation with single `vec![0u8; 16 + pad_len]` buffer and in-place `split_at_mut` encryption.
   - `download`: Consolidated `content-encoding` header lookups into a single pass.
+  - `paginate_cursor` / `paginate_all_cursor`: Eliminated `Option<String>` cursor cloning on every page iteration via `cursor.take()`.
+  - `AmazonAdConfig::token_url`: Added custom `token_url` override check and static `Region::token_url` zero-alloc return.
+  - `create_configuration`: Pre-allocated `HeaderMap::with_capacity(5)` and converted string parsing to zero-parsing `HeaderValue::from_static` / `from_str`.
 - OAuth2 LWA authentication with profile selection and `Arc`-shared token cache.
 - `reqwest-middleware` stack: retry (exponential backoff on 429/5xx),
   tracing middleware, custom auth header injection.

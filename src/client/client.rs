@@ -169,24 +169,35 @@ impl AmazonAdClient {
     /// and injects all required Advertising API headers (ClientId,
     /// Authorization, Scope, Content-Type).
     pub async fn create_configuration(&self) -> Result<Configuration, anyhow::Error> {
-        let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert("Content-Type", "application/json; charset=utf-8".parse()?);
+        use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, HOST};
+
+        let mut headers = HeaderMap::with_capacity(5);
+        headers.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_static("application/json; charset=utf-8"),
+        );
 
         let base_url = self.get_base_url();
-        let host = base_url.trim_start_matches("https://");
-        headers.insert("host", host.parse()?);
+        let host_str = base_url.trim_start_matches("https://");
+        if let Ok(val) = HeaderValue::from_str(host_str) {
+            headers.insert(HOST, val);
+        }
 
         let access_token = self.get_access_token().await?;
-        headers.insert("Authorization", format!("Bearer {}", access_token).parse()?);
+        let auth_val = format!("Bearer {}", access_token);
+        headers.insert(AUTHORIZATION, HeaderValue::from_str(&auth_val)?);
 
         headers.insert(
             "Amazon-Advertising-API-ClientId",
-            self.config.client_id.parse()?,
+            HeaderValue::from_str(&self.config.client_id)?,
         );
 
         // Only inject Scope header if a profile is set
         if let Some(ref profile_id) = self.config.profile_id {
-            headers.insert("Amazon-Advertising-API-Scope", profile_id.parse()?);
+            headers.insert(
+                "Amazon-Advertising-API-Scope",
+                HeaderValue::from_str(profile_id)?,
+            );
         }
 
         let rate_limiter = std::sync::Arc::new(self.rate_limiter.clone());

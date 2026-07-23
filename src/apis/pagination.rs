@@ -25,15 +25,15 @@ where
         let mut cursor: Option<String> = None;
 
         loop {
-            match f(cursor.clone()).await {
+            match f(cursor.take()).await {
                 Ok(response) => {
-                    cursor = response.next_token.clone();
+                    let has_next = response.next_token.is_some();
+                    cursor = response.next_token;
                     for item in response.payload {
                         yield Ok(item);
                     }
 
-                    // No more pages — exit
-                    if cursor.is_none() {
+                    if !has_next {
                         break;
                     }
                 }
@@ -56,11 +56,12 @@ where
     let mut cursor: Option<String> = None;
 
     loop {
-        let response = f(cursor.clone()).await?;
-        cursor = response.next_token.clone();
+        let response = f(cursor.take()).await?;
+        let has_next = response.next_token.is_some();
+        cursor = response.next_token;
         all_items.extend(response.payload);
 
-        if cursor.is_none() {
+        if !has_next {
             break;
         }
     }
