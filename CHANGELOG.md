@@ -33,7 +33,7 @@ Initial Rust port of `python-amazon-ad-api` v0.8.5 with enterprise-grade securit
 - AES-CBC encryption helpers for creative asset security.
 
 ### Architecture & Quality
-- **CI Pipeline**: Configured GitHub Actions workflow (`.github/workflows/ci.yml`) to test and lint with `--all-features`.
+- **Local Verification Suite**: Quality assurance and test verification (`cargo test`, `cargo clippy`, `cargo fmt`) performed directly in local development environment.
 - **Panic-Safety**: Zero panics across `execute_request`, `parse_deep_object`, and macro parameter parsing.
 - **Clippy Clean**: 100% compliant with `cargo clippy --workspace --all-features -- -D warnings`.
 - **Rust Best Practices**: Dedicated project skill under `.gemini/skills/rust-best-practices/SKILL.md`.
